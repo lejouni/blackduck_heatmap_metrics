@@ -2,6 +2,28 @@
 
 A Python-based tool for analyzing Black Duck scan metrics from CSV files in zip archives. Generates interactive HTML dashboards with time series analysis, scan type evolution tracking, and year-based filtering.
 
+## Prerequisites
+
+### Exporting Heatmap Data from Black Duck
+
+Before using this tool, you need to export the heatmap data from your Black Duck server:
+
+1. **Access Black Duck Administration**
+   - Log in to your Black Duck server as an administrator
+   - Navigate to **System → Log Files**
+
+2. **Download Heatmap Logs**
+   - In the Log Files section, locate the **Heatmap** logs
+   - Select the time period you want to analyze
+   - Click **Download** to export the data as a ZIP archive
+   - The downloaded file will contain CSV files with scan metrics
+
+3. **Use the Downloaded ZIP**
+   - Save the downloaded ZIP file (e.g., `heatmap-data.zip`)
+   - Use this ZIP file as input to the `bdmetrics` command
+
+📖 **Detailed Instructions**: [Black Duck Documentation - Downloading Log Files](https://documentation.blackduck.com/bundle/bd-hub/page/Administration/LogFiles.html#DownloadingLogFiles)
+
 ## Features
 
 - 📦 **Zip Archive Support**: Reads CSV files directly from zip archives
