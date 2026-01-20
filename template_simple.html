@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heatmap Metrics Analysis Report</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #0066cc 0%, #003d7a 100%);
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            color: #0066cc;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card-title {
+            color: #666;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .card-value {
+            font-size: 36px;
+            font-weight: bold;
+            margin: 10px 0;
+            color: #3182ce;
+        }
+        
+        .section {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: #0066cc;
+            margin-bottom: 20px;
+            font-size: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        
+        .file-section {
+            margin-bottom: 40px;
+            padding-bottom: 40px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .file-section:last-child {
+            border-bottom: none;
+        }
+        
+        h3 {
+            color: #0066cc;
+            margin: 20px 0 15px 0;
+        }
+        
+        h4 {
+            color: #333;
+            margin: 15px 0 10px 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            overflow-x: auto;
+            display: block;
+        }
+        
+        thead {
+            background: #f7fafc;
+        }
+        
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #4a5568;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        th:hover {
+            background: #edf2f7;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        tbody tr:hover {
+            background: #f7fafc;
+        }
+        
+        .chart-container {
+            margin: 20px 0;
+            min-height: 400px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .stat-box {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #0066cc;
+        }
+        
+        .stat-label {
+            font-weight: bold;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 1.3em;
+            color: #0066cc;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            background: #f7fafc;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1em;
+            color: #333;
+        }
+        
+        .tab:hover {
+            background: #edf2f7;
+        }
+        
+        .tab.active {
+            background: #0066cc;
+            color: white;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .footer {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #e6f3ff;
+            color: #0066cc;
+            border-radius: 3px;
+            font-size: 0.85em;
+            margin: 2px;
+        }
+        
+        .value-count-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .value-count-item {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+            color: white;
+        }
+        
+        .value-count-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .value-count-label {
+            font-weight: 600;
+            font-size: 1em;
+            color: white;
+        }
+        
+        .value-count-value {
+            background: rgba(255, 255, 255, 0.25);
+            color: white;
+            font-weight: bold;
+            font-size: 1.3em;
+            padding: 5px 15px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+            word-break: break-all;
+            max-width: 100%;
+        }
+        
+        @media (max-width: 768px) {
+            .summary-cards {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Heatmap Metrics Analysis Report</h1>
+            <div class="subtitle">
+                Generated on {{ generated_date }}
+                {% if analysis.available_files and analysis.available_files|length == 1 %}
+                <br>Analyzing: <strong>{{ analysis.available_files[0] }}</strong>
+                {% elif analysis.available_files and analysis.available_files|length > 1 %}
+                <br>Analyzing <strong>{{ analysis.available_files|length }}</strong> files (combined data)
+                {% endif %}
+            </div>
+            {% if analysis.available_years %}
+            <div style="margin-top: 20px;">
+                <label for="yearFilter" style="font-size: 1.1em; margin-right: 10px;">Filter by Year:</label>
+                <select id="yearFilter" onchange="applyYearFilter()" style="padding: 8px 15px; font-size: 1em; border-radius: 5px; border: 2px solid white; background: white; color: #667eea; cursor: pointer;">
+                    <option value="all">All Years</option>
+                    {% for year in analysis.available_years %}
+                    <option value="{{ year }}">{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+        </header>
+        
+        <div class="summary-cards">
+            <div class="card">
+                <div class="card-title">Total Files</div>
+                <div class="card-value" id="totalFiles">{{ analysis.summary.total_files }}</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Total Records</div>
+                <div class="card-value" id="totalRecords">{{ analysis.summary.total_rows | default('N/A') }}</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Unique Projects</div>
+                <div class="card-value" id="uniqueProjects">{{ analysis.summary.unique_projects | default('N/A') }}</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Total Scans</div>
+                <div class="card-value" id="totalScans">{{ analysis.summary.total_scans | default('N/A') }}</div>
+            </div>
+        </div>
+        
+        <div class="summary-cards">
+            <div class="card">
+                <div class="card-title">Successful Scans</div>
+                <div class="card-value" id="successfulScans" style="color: #38a169;">{{ analysis.summary.successful_scans | default('N/A') }}</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Failed Scans</div>
+                <div class="card-value" id="failedScans" style="color: #e53e3e;">{{ analysis.summary.failed_scans | default('N/A') }}</div>
+            </div>
+            <div class="card">
+                <div class="card-title">Success Rate</div>
+                <div class="card-value" id="successRate" style="color: #3182ce;">
+                    {% if analysis.summary.total_scans and analysis.summary.total_scans > 0 %}
+                        {{ "%.1f" | format((analysis.summary.successful_scans / analysis.summary.total_scans * 100)) }}%
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        {% if analysis.aggregated %}
+        <div class="section">
+            <h2>🎯 Black Duck Scan Overview</h2>
+            
+            {% if analysis.aggregated.scan_types %}
+            {% set total_scans = analysis.aggregated.scan_types.values()|sum %}
+            <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 20px;">
+                <h3 style="margin-top: 0; color: #2d3748; font-size: 1.4em;">🔍 Scan Types Breakdown</h3>
+                <div class="value-count-grid">
+                    {% for scan_type, count in analysis.aggregated.scan_types.items() %}
+                    {% set percentage = ((count / total_scans) * 100)|round(1) if total_scans > 0 else 0 %}
+                    <div class="value-count-item">
+                        <span class="value-count-label"><span class="scan-type-icon" data-type="{{ scan_type }}"></span> {{ scan_type }}</span>
+                        <span class="value-count-value">{{ count }} <span style="color: #fff; font-size: 0.85em; font-weight: 700;">({{ percentage }}%)</span></span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <h3 style="margin-top: 30px;">Top Projects</h3>
+            <div style="margin-bottom: 15px;">
+                <label for="scanTypeFilter" style="font-weight: 600; margin-right: 10px;">Filter by Scan Type:</label>
+                <select id="scanTypeFilter" onchange="filterProjectsByScanType()" style="padding: 8px 15px; font-size: 0.95em; border-radius: 5px; border: 1px solid #e2e8f0; background: white; cursor: pointer;">
+                    <option value="all">All Scan Types</option>
+                    {% for scan_type in analysis.aggregated.scan_types.keys() %}
+                    <option value="{{ scan_type }}">{{ scan_type }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-top: 20px;">
+                <div id="projectBarChart" class="chart-container" style="min-height: 400px;"></div>
+                <div id="scanTypePieChart" class="chart-container" style="min-height: 400px;"></div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if chart_data %}
+        <div class="section">
+            <h2>📈 Time Series Trends</h2>
+            <div id="timeSeriesChart" class="chart-container"></div>
+            
+            <h3 style="margin-top: 30px;">Scan Type Evolution Over Time</h3>
+            <div id="scanTypeEvolutionSection">
+                <div style="margin-bottom: 15px;">
+                    <label style="font-weight: 600; margin-right: 10px;">Select Scan Types to Display:</label>
+                    <div id="scanTypeCheckboxes" style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px;">
+                        {% for scan_type in analysis.aggregated.scan_types.keys() %}
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="checkbox" class="scan-type-checkbox" value="{{ scan_type }}" checked onchange="updateScanTypeEvolution()">
+                            <span>{{ scan_type }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div id="scanTypeEvolutionChart" class="chart-container"></div>
+            </div>
+            
+            {% if chart_data.trends %}
+            <h3 style="margin-top: 30px;">Metric Trends</h3>
+            <div id="metricsChart" class="chart-container"></div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <div class="footer">
+            <p>Generated by Heatmap Metrics Analyzer</p>
+        </div>
+    </div>
+    
+    <script>
+        // Config for all charts
+        const config = {
+            responsive: true,
+            displayModeBar: true,
+            displaylogo: false
+        };
+        
+        // Store year-specific data
+        const yearData = {{ analysis.by_year | tojson | safe }};
+        
+        // Store data
+        const allData = {
+            total_files: {{ analysis.summary.total_files }},
+            total_rows: {{ analysis.summary.total_rows | default(0) }},
+            unique_projects: {{ analysis.summary.unique_projects | default(0) }},
+            total_scans: {{ analysis.summary.total_scans | default(0) }},
+            successful_scans: {{ analysis.summary.successful_scans | default(0) }},
+            failed_scans: {{ analysis.summary.failed_scans | default(0) }},
+            top_projects: {{ analysis.aggregated.top_projects | tojson | safe }},
+            projects_by_scan_type: {{ analysis.aggregated.projects_by_scan_type | tojson | safe }},
+            scan_types: {{ analysis.aggregated.scan_types | tojson | safe }}
+        };
+        
+        // Function to apply year filter
+        function applyYearFilter() {
+            const yearFilterEl = document.getElementById('yearFilter');
+            if (!yearFilterEl) return;
+            
+            const selectedYear = yearFilterEl.value;
+            console.log('Year filter changed to:', selectedYear);
+            
+            let displayData;
+            if (selectedYear === 'all') {
+                displayData = allData;
+            } else {
+                const data = yearData[selectedYear];
+                if (data) {
+                    displayData = {
+                        total_files: allData.total_files,
+                        total_rows: data.total_rows,
+                        unique_projects: data.unique_projects,
+                        total_scans: data.total_scans,
+                        successful_scans: data.successful_scans || 0,
+                        failed_scans: data.failed_scans || 0,
+                        scan_types: data.scan_types,
+                        top_projects: data.top_projects
+                    };
+                } else {
+                    console.error('No data found for year:', selectedYear);
+                    return;
+                }
+            }
+            
+            // Update summary cards
+            document.getElementById('totalFiles').textContent = displayData.total_files;
+            document.getElementById('totalRecords').textContent = displayData.total_rows;
+            document.getElementById('uniqueProjects').textContent = displayData.unique_projects;
+            document.getElementById('totalScans').textContent = displayData.total_scans;
+            document.getElementById('successfulScans').textContent = displayData.successful_scans;
+            document.getElementById('failedScans').textContent = displayData.failed_scans;
+            
+            // Update success rate
+            const rateElement = document.getElementById('successRate');
+            if (displayData.total_scans > 0) {
+                const rate = (displayData.successful_scans / displayData.total_scans * 100).toFixed(1);
+                rateElement.textContent = rate + '%';
+            } else {
+                rateElement.textContent = 'N/A';
+            }
+            
+            // Update scan types
+            updateScanTypes(displayData.scan_types);
+            
+            // Update charts
+            updateProjectChart(displayData.top_projects);
+            updateScanTypePie(displayData.scan_types);
+            updateTimeSeriesChart(selectedYear);
+        }
+        
+        function updateScanTypes(scanTypes) {
+            const container = document.querySelector('.value-count-grid');
+            if (!container) return;
+            
+            const total = Object.values(scanTypes).reduce((sum, count) => sum + count, 0);
+            
+            container.innerHTML = '';
+            for (const [type, count] of Object.entries(scanTypes)) {
+                const item = document.createElement('div');
+                item.className = 'value-count-item';
+                const icon = getScanTypeIcon(type);
+                const displayName = getScanTypeDisplayName(type);
+                const percentage = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
+                item.innerHTML = `
+                    <span class="value-count-label">${icon} ${displayName}</span>
+                    <span class="value-count-value">${count} <span style="color: #fff; font-size: 0.85em; font-weight: 700;">(${percentage}%)</span></span>
+                `;
+                container.appendChild(item);
+            }
+        }
+        
+        function updateTimeSeriesChart(selectedYear) {
+            if (!chartData || !chartData.time_series) return;
+            
+            let timeSeriesData;
+            if (selectedYear === 'all') {
+                timeSeriesData = chartData.time_series || [];
+            } else {
+                timeSeriesData = (chartData.time_series_by_year && chartData.time_series_by_year[selectedYear]) || [];
+            }
+            
+            if (timeSeriesData.length > 0) {
+                const traces = timeSeriesData.map(function(chart) {
+                    return {
+                        x: chart.x,
+                        y: chart.y,
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        name: chart.name,
+                        line: { width: 2 }
+                    };
+                });
+                
+                const layout = {
+                    title: 'Scan Activity Over Time',
+                    xaxis: { title: 'Time', tickangle: -45 },
+                    yaxis: { title: 'Count/Size' },
+                    hovermode: 'closest',
+                    showlegend: true,
+                    height: 500
+                };
+                
+                Plotly.react('timeSeriesChart', traces, layout, config);
+            } else {
+                Plotly.react('timeSeriesChart', [], {
+                    title: 'No time series data available for the selected year',
+                    height: 500
+                }, config);
+            }
+        }
+        
+        // Generate charts
+        const chartData = {{ chart_data | safe }};
+        
+        // Map scan types to appropriate icons and display names
+        function getScanTypeIcon(scanType) {
+            const iconMap = {
+                'SIGNATURE': '✍️',
+                'SNIPPET': '✂️',
+                'BINARY': '💾',
+                'CONTAINER': '📦',
+                'SOURCE': '📄',
+                'DEPENDENCY': '🔗',
+                'PACKAGE_MANAGER': '📚',
+                'DETECTOR': '🔍',
+                'MANUAL': '👤',
+                'INFRASTRUCTURE_AS_CODE': '🏗️',
+                'DEFAULT': '📊'
+            };
+            return iconMap[scanType.toUpperCase()] || iconMap['DEFAULT'];
+        }
+        
+        function getScanTypeDisplayName(scanType) {
+            const displayNameMap = {
+                'INFRASTRUCTURE_AS_CODE': 'INFRA AS CODE'
+            };
+            return displayNameMap[scanType.toUpperCase()] || scanType;
+        }
+        
+        function filterProjectsByScanType() {
+            const selectedScanType = document.getElementById('scanTypeFilter').value;
+            
+            if (selectedScanType === 'all') {
+                updateProjectChart(allData.top_projects);
+            } else {
+                const projectsForType = allData.projects_by_scan_type[selectedScanType];
+                updateProjectChart(projectsForType);
+            }
+        }
+        
+        function updateProjectChart(topProjects) {
+            if (!topProjects || Object.keys(topProjects).length === 0) {
+                Plotly.purge('projectBarChart');
+                document.getElementById('projectBarChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #666;">No data available</p>';
+                return;
+            }
+            
+            // Sort and take top 20
+            const sorted = Object.entries(topProjects)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 20);
+            
+            const labels = sorted.map(item => item[0]);
+            const values = sorted.map(item => item[1]);
+            
+            const trace = {
+                x: values,
+                y: labels,
+                type: 'bar',
+                orientation: 'h',
+                marker: {
+                    color: 'rgba(0, 102, 204, 0.8)',
+                    line: {
+                        color: 'rgba(0, 102, 204, 1)',
+                        width: 1
+                    }
+                }
+            };
+            
+            const layout = {
+                title: 'Top Projects by Scan Count',
+                xaxis: { title: 'Total Scans' },
+                yaxis: { title: '' },
+                height: 400,
+                margin: { l: 200 }
+            };
+            
+            Plotly.react('projectBarChart', [trace], layout, config);
+        }
+        
+        function updateScanTypeEvolution() {
+            // Get selected scan types from checkboxes
+            const checkboxes = document.querySelectorAll('.scan-type-checkbox:checked');
+            const selectedTypes = Array.from(checkboxes).map(cb => cb.value);
+            
+            if (selectedTypes.length === 0) {
+                document.getElementById('scanTypeEvolutionChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #666;">Please select at least one scan type</p>';
+                return;
+            }
+            
+            if (!chartData || !chartData.scan_type_evolution) {
+                document.getElementById('scanTypeEvolutionChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #666;">No scan type evolution data available</p>';
+                return;
+            }
+            
+            // Create traces for selected scan types
+            const traces = selectedTypes.map(scanType => {
+                const data = chartData.scan_type_evolution[scanType];
+                if (!data || !data.x || !data.y || data.x.length === 0) {
+                    return null;
+                }
+                
+                return {
+                    x: data.x,
+                    y: data.y,
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: scanType,
+                    line: { width: 2 }
+                };
+            }).filter(trace => trace !== null);
+            
+            if (traces.length === 0) {
+                document.getElementById('scanTypeEvolutionChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #666;">No data available for selected scan types</p>';
+                return;
+            }
+            
+            const layout = {
+                title: 'Scan Type Evolution Over Time',
+                xaxis: { title: 'Time', tickangle: -45 },
+                yaxis: { title: 'Scan Count' },
+                hovermode: 'closest',
+                height: 500
+            };
+            
+            Plotly.react('scanTypeEvolutionChart', traces, layout, config);
+        }
+        
+        // Initialize charts on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initializing charts...');
+            
+            // Verify Plotly is loaded
+            if (typeof Plotly === 'undefined') {
+                console.error('ERROR: Plotly is not loaded!');
+                return;
+            }
+            
+            // Apply icons and display names to scan type elements
+            document.querySelectorAll('.scan-type-icon').forEach(el => {
+                const scanType = el.getAttribute('data-type');
+                const icon = getScanTypeIcon(scanType);
+                const displayName = getScanTypeDisplayName(scanType);
+                const label = el.parentElement;
+                label.innerHTML = `<span class="scan-type-icon">${icon}</span> ${displayName}`;
+            });
+            
+            // Time series chart
+            if (chartData && chartData.time_series && chartData.time_series.length > 0) {
+                const traces = chartData.time_series.map(function(chart) {
+                    return {
+                        x: chart.x,
+                        y: chart.y,
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        name: chart.name,
+                        line: { width: 2 }
+                    };
+                });
+                
+                const layout = {
+                    title: 'Scan Activity Over Time',
+                    xaxis: { title: 'Time', tickangle: -45 },
+                    yaxis: { title: 'Count/Size' },
+                    hovermode: 'closest',
+                    showlegend: true,
+                    height: 500
+                };
+                
+                Plotly.newPlot('timeSeriesChart', traces, layout, config);
+            }
+            
+            // Top projects bar chart
+            if (chartData && chartData.project_bars && chartData.project_bars.labels && chartData.project_bars.labels.length > 0) {
+                const trace = {
+                    x: chartData.project_bars.values,
+                    y: chartData.project_bars.labels,
+                    type: 'bar',
+                    orientation: 'h',
+                    marker: {
+                        color: 'rgba(0, 102, 204, 0.8)',
+                        line: {
+                            color: 'rgba(0, 102, 204, 1)',
+                            width: 1
+                        }
+                    }
+                };
+                
+                const layout = {
+                    title: 'Top Projects by Scan Count',
+                    xaxis: { title: 'Total Scans' },
+                    yaxis: { title: '' },
+                    height: 400,
+                    margin: { l: 200 }
+                };
+                
+                Plotly.newPlot('projectBarChart', [trace], layout, config);
+            } else if (allData && allData.top_projects) {
+                updateProjectChart(allData.top_projects);
+            }
+            
+            // Scan type pie chart
+            if (chartData && chartData.scan_type_pie && chartData.scan_type_pie.labels && chartData.scan_type_pie.labels.length > 0) {
+                const trace = {
+                    labels: chartData.scan_type_pie.labels,
+                    values: chartData.scan_type_pie.values,
+                    type: 'pie',
+                    marker: {
+                        colors: ['#0066cc', '#3182ce', '#38b2ac', '#48bb78', '#d69e2e', '#dd6b20']
+                    }
+                };
+                
+                const layout = {
+                    title: 'Scan Type Distribution',
+                    height: 400
+                };
+                
+                Plotly.newPlot('scanTypePieChart', [trace], layout, config);
+            }
+            
+            // Scan type evolution chart
+            if (chartData && chartData.scan_type_evolution) {
+                updateScanTypeEvolution();
+            }
+            
+            // Metrics trends chart
+            if (chartData && chartData.trends && chartData.trends.length > 0) {
+                const traces = chartData.trends.map(function(chart) {
+                    return {
+                        x: chart.x,
+                        y: chart.y,
+                        type: 'scatter',
+                        mode: 'lines+markers',
+                        name: chart.name,
+                        line: { width: 2 }
+                    };
+                });
+                
+                const layout = {
+                    title: 'Metric Trends',
+                    xaxis: { title: 'Index' },
+                    yaxis: { title: 'Value' },
+                    hovermode: 'closest',
+                    showlegend: true,
+                    height: 400
+                };
+                
+                Plotly.newPlot('metricsChart', traces, layout, config);
+            }
+        });
+    </script>
+</body>
+</html>
