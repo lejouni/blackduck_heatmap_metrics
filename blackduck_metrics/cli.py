@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import datetime
 import time
 
+from . import __version__
 from .analyzer import read_csv_from_zip, analyze_data, generate_chart_data, generate_html_report
 
 
@@ -50,7 +51,7 @@ def main():
     parser.add_argument(
         '-v', '--version',
         action='version',
-        version='%(prog)s 1.0.0'
+        version=f'%(prog)s {__version__}'
     )
     
     args = parser.parse_args()

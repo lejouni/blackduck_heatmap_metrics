@@ -381,13 +381,30 @@ if ((-not $NoInstallTest) -and (-not $DryRun)) {
   }
   $venv = Join-Path $root '.pkgtest'
   if (-not $DryRun) {
-    if (Test-Path $venv) { Remove-Item -Recurse -Force $venv }
+    if (Test-Path $venv) {
+      # Windows: Try to remove, retry if locked
+      $retries = 3
+      for ($i = 1; $i -le $retries; $i++) {
+        try {
+          Remove-Item -Recurse -Force $venv -ErrorAction Stop
+          break
+        } catch {
+          if ($i -lt $retries) {
+            Write-Host "Failed to remove $venv (attempt $i/$retries), retrying..." -ForegroundColor Yellow
+            Start-Sleep -Seconds 2
+          } else {
+            Write-Host "Warning: Could not remove $venv, using a new directory instead" -ForegroundColor Yellow
+            $venv = Join-Path $root ".pkgtest_$(Get-Date -Format 'yyyyMMddHHmmss')"
+          }
+        }
+      }
+    }
   } else {
     Write-Host "[DRY-RUN] Would create temp venv at $venv" -ForegroundColor Yellow
   }
-  Invoke-Step -Command "python -m venv .pkgtest"
+  Invoke-Step -Command "python -m venv `"$venv`""
   $testPy = Join-Path $venv 'Scripts/python.exe'
-  Invoke-Step -Command "$testPy -m pip install --upgrade pip"
+  Invoke-Step -Command "`"$testPy`" -m pip install --upgrade pip"
   
   if ($NoUpload) {
     # Install from local dist wheel
