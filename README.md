@@ -32,7 +32,6 @@ Before using this tool, you need to export the heatmap data from your Black Duck
 - 📅 **Multi-level Filtering**: Filter by file, year, and project
 - 🔍 **Scan Type Analysis**: Track scan type distribution and evolution over time
 - ✅ **Success/Failure Metrics**: Monitor scan success rates
-- 🎨 **Professional Theme**: Blue gradient design matching Coverity on Polaris
 - 📱 **Responsive Design**: Works on desktop and mobile devices
 - 🚀 **Performance Optimized**: Configurable min-scans threshold and skip-detailed mode for large datasets
 - 📑 **Dual Report Generation**: Creates both full (with filters) and simplified (year-only) reports
