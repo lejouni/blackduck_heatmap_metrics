@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Heatmap Metrics Analysis Report</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script>
+        // Forward declarations for functions called by inline event handlers
+        // These will be properly defined in the main script block later
+        function applyYearFilter() {}
+        function filterProjectsByScanType() {}
+        function filterProjectsByTimeBlock() {}
+        function updateScanTypeEvolution() {}
+    </script>
     <style>
         * {
             margin: 0;
@@ -348,27 +356,42 @@
             </div>
         </div>
         
-        <div class="summary-cards">
-            <div class="card">
-                <div class="card-title">🔥 Busiest Hours</div>
-                <div class="card-value" style="color: #e53e3e;">
-                    {% if analysis.summary.busiest_hour is not none %}
-                        {{ "%02d" | format(analysis.summary.busiest_hour) }}:00-{{ "%02d" | format(analysis.summary.busiest_hour_end) }}:00
-                        <div style="font-size: 0.4em; color: #666; margin-top: 5px;">{{ analysis.summary.busiest_count }} scans ({{ analysis.summary.busiest_percentage }}%)</div>
-                    {% else %}
+        <div class="section">
+            <h2>🕐 Busiest and Quietest Scan Times</h2>
+            <div class="grid">
+                <div class="card">
+                    <h3>🔥 Busiest Hours (3-hour block)</h3>
+                    <div id="busiestHours" style="font-size: 2em; margin: 10px 0;">
+                        {% if analysis.summary.busiest_hour is not none %}
+                        {{ "%02d:00" | format(analysis.summary.busiest_hour) }} - {{ "%02d:00" | format(analysis.summary.busiest_hour_end) }}
+                        {% else %}
                         N/A
-                    {% endif %}
+                        {% endif %}
+                    </div>
+                    <div id="busiestCount" style="font-size: 1.2em; color: #666;">
+                        {% if analysis.summary.busiest_count %}
+                        {{ analysis.summary.busiest_count }} scans ({{ "%.1f" | format(analysis.summary.busiest_percentage) }}%)
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </div>
                 </div>
-            </div>
-            <div class="card">
-                <div class="card-title">😴 Quietest Hours</div>
-                <div class="card-value" style="color: #38a169;">
-                    {% if analysis.summary.quietest_hour is not none %}
-                        {{ "%02d" | format(analysis.summary.quietest_hour) }}:00-{{ "%02d" | format(analysis.summary.quietest_hour_end) }}:00
-                        <div style="font-size: 0.4em; color: #666; margin-top: 5px;">{{ analysis.summary.quietest_count }} scans ({{ analysis.summary.quietest_percentage }}%)</div>
-                    {% else %}
+                <div class="card">
+                    <h3>😴 Quietest Hours (3-hour block)</h3>
+                    <div id="quietestHours" style="font-size: 2em; margin: 10px 0;">
+                        {% if analysis.summary.quietest_hour is not none %}
+                        {{ "%02d:00" | format(analysis.summary.quietest_hour) }} - {{ "%02d:00" | format(analysis.summary.quietest_hour_end) }}
+                        {% else %}
                         N/A
-                    {% endif %}
+                        {% endif %}
+                    </div>
+                    <div id="quietestCount" style="font-size: 1.2em; color: #666;">
+                        {% if analysis.summary.quietest_count %}
+                        {{ analysis.summary.quietest_count }} scans ({{ "%.1f" | format(analysis.summary.quietest_percentage) }}%)
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -408,6 +431,25 @@
                 <div id="projectBarChart" class="chart-container" style="min-height: 400px;"></div>
                 <div id="scanTypePieChart" class="chart-container" style="min-height: 400px;"></div>
             </div>
+            
+            {% if analysis.aggregated.projects_by_time_block %}
+            <h3 style="margin-top: 40px;">🕐 Top Projects by Time Block (3-hour intervals)</h3>
+            <div style="margin-bottom: 15px;">
+                <label for="timeBlockFilter" style="font-weight: 600; margin-right: 10px;">Filter by Time Block:</label>
+                <select id="timeBlockFilter" onchange="filterProjectsByTimeBlock()" style="padding: 8px 15px; font-size: 0.95em; border-radius: 5px; border: 1px solid #e2e8f0; background: white; cursor: pointer;">
+                    <option value="all">All Time Blocks</option>
+                    {% for time_block in ['06-09', '09-12', '12-15', '15-18', '18-21', '21-00', '00-03', '03-06'] %}
+                    {% if time_block in analysis.aggregated.projects_by_time_block %}
+                    <option value="{{ time_block }}">{{ time_block }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <div id="timeBlockProjectChart" class="chart-container" style="min-height: 400px;"></div>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
         
@@ -465,8 +507,43 @@
             failed_scans: {{ analysis.summary.failed_scans | default(0) }},
             top_projects: {{ analysis.aggregated.top_projects | tojson | safe }},
             projects_by_scan_type: {{ analysis.aggregated.projects_by_scan_type | tojson | safe }},
-            scan_types: {{ analysis.aggregated.scan_types | tojson | safe }}
+            projects_by_time_block: {{ analysis.aggregated.projects_by_time_block | default({}) | tojson | safe }},
+            scan_types: {{ analysis.aggregated.scan_types | tojson | safe }},
+            time_blocks: {{ analysis.summary.time_blocks | default([]) | tojson | safe }},
+            busiest_hour: {{ analysis.summary.busiest_hour | default('null') }},
+            busiest_hour_end: {{ analysis.summary.busiest_hour_end | default('null') }},
+            busiest_count: {{ analysis.summary.busiest_count | default(0) }},
+            busiest_percentage: {{ analysis.summary.busiest_percentage | default(0) }},
+            quietest_hour: {{ analysis.summary.quietest_hour | default('null') }},
+            quietest_hour_end: {{ analysis.summary.quietest_hour_end | default('null') }},
+            quietest_count: {{ analysis.summary.quietest_count | default(0) }},
+            quietest_percentage: {{ analysis.summary.quietest_percentage | default(0) }}
         };
+        
+        // Filter projects by time block (must be defined early for inline onchange handlers)
+        function filterProjectsByTimeBlock() {
+            const selectedTimeBlock = document.getElementById('timeBlockFilter').value;
+            
+            if (selectedTimeBlock === 'all') {
+                updateTimeBlockProjectChart(allData.top_projects || {}, 'All Time Blocks');
+            } else {
+                const projectsForBlock = (allData.projects_by_time_block && allData.projects_by_time_block[selectedTimeBlock]) || {};
+                updateTimeBlockProjectChart(projectsForBlock, selectedTimeBlock);
+            }
+        }
+        };
+        
+        // Filter projects by scan type (must be defined early for inline onchange handlers)
+        function filterProjectsByScanType() {
+            const selectedScanType = document.getElementById('scanTypeFilter').value;
+            
+            if (selectedScanType === 'all') {
+                updateProjectChart(allData.top_projects);
+            } else {
+                const projectsForType = (allData.projects_by_scan_type && allData.projects_by_scan_type[selectedScanType]) || {};
+                updateProjectChart(projectsForType);
+            }
+        }
         
         // Function to apply year filter
         function applyYearFilter() {
@@ -490,7 +567,16 @@
                         successful_scans: data.successful_scans || 0,
                         failed_scans: data.failed_scans || 0,
                         scan_types: data.scan_types,
-                        top_projects: data.top_projects
+                        top_projects: data.top_projects,
+                        time_blocks: data.time_blocks || [],
+                        busiest_hour: data.busiest_hour,
+                        busiest_hour_end: data.busiest_hour_end,
+                        busiest_count: data.busiest_count,
+                        busiest_percentage: data.busiest_percentage,
+                        quietest_hour: data.quietest_hour,
+                        quietest_hour_end: data.quietest_hour_end,
+                        quietest_count: data.quietest_count,
+                        quietest_percentage: data.quietest_percentage
                     };
                 } else {
                     console.error('No data found for year:', selectedYear);
@@ -518,10 +604,14 @@
             // Update scan types
             updateScanTypes(displayData.scan_types);
             
+            // Update busiest/quietest hours
+            updateBusiestQuietestHours(displayData);
+            
             // Update charts
             updateProjectChart(displayData.top_projects);
             updateScanTypePie(displayData.scan_types);
             updateTimeSeriesChart(selectedYear);
+            filterProjectsByTimeBlock();
         }
         
         function updateScanTypes(scanTypes) {
@@ -613,17 +703,6 @@
             return displayNameMap[scanType.toUpperCase()] || scanType;
         }
         
-        function filterProjectsByScanType() {
-            const selectedScanType = document.getElementById('scanTypeFilter').value;
-            
-            if (selectedScanType === 'all') {
-                updateProjectChart(allData.top_projects);
-            } else {
-                const projectsForType = allData.projects_by_scan_type[selectedScanType];
-                updateProjectChart(projectsForType);
-            }
-        }
-        
         function updateProjectChart(topProjects) {
             if (!topProjects || Object.keys(topProjects).length === 0) {
                 Plotly.purge('projectBarChart');
@@ -662,6 +741,80 @@
             };
             
             Plotly.react('projectBarChart', [trace], layout, config);
+        }
+        
+        function updateTimeBlockProjectChart(topProjects, timeBlock) {
+            if (!topProjects || Object.keys(topProjects).length === 0) {
+                Plotly.purge('timeBlockProjectChart');
+                document.getElementById('timeBlockProjectChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #666;">No data available for this time block</p>';
+                return;
+            }
+            
+            // Sort and take top 10
+            const sorted = Object.entries(topProjects)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+            
+            const labels = sorted.map(item => item[0]);
+            const values = sorted.map(item => item[1]);
+            
+            const trace = {
+                x: values,
+                y: labels,
+                type: 'bar',
+                orientation: 'h',
+                marker: {
+                    color: 'rgba(0, 153, 153, 0.8)',
+                    line: {
+                        color: 'rgba(0, 153, 153, 1)',
+                        width: 1
+                    }
+                }
+            };
+            
+            let titlePrefix = 'Top Projects';
+            if (timeBlock !== 'All Time Blocks') {
+                titlePrefix = `Top Projects (${timeBlock})`;
+            }
+            
+            const layout = {
+                title: titlePrefix,
+                xaxis: { title: 'Total Scans' },
+                yaxis: { title: '' },
+                height: 400,
+                margin: { l: 200 }
+            };
+            
+            Plotly.react('timeBlockProjectChart', [trace], layout, config);
+        }
+        
+        function updateBusiestQuietestHours(displayData) {
+            const busiestHoursEl = document.getElementById('busiestHours');
+            const busiestCountEl = document.getElementById('busiestCount');
+            const quietestHoursEl = document.getElementById('quietestHours');
+            const quietestCountEl = document.getElementById('quietestCount');
+            
+            // Update busiest hours
+            if (displayData.busiest_hour !== null && displayData.busiest_hour !== undefined) {
+                const busiestStart = String(displayData.busiest_hour).padStart(2, '0');
+                const busiestEnd = String(displayData.busiest_hour_end).padStart(2, '0');
+                busiestHoursEl.textContent = `${busiestStart}:00 - ${busiestEnd}:00`;
+                busiestCountEl.textContent = `${displayData.busiest_count} scans (${displayData.busiest_percentage}%)`;
+            } else {
+                busiestHoursEl.textContent = 'N/A';
+                busiestCountEl.textContent = 'N/A';
+            }
+            
+            // Update quietest hours
+            if (displayData.quietest_hour !== null && displayData.quietest_hour !== undefined) {
+                const quietestStart = String(displayData.quietest_hour).padStart(2, '0');
+                const quietestEnd = String(displayData.quietest_hour_end).padStart(2, '0');
+                quietestHoursEl.textContent = `${quietestStart}:00 - ${quietestEnd}:00`;
+                quietestCountEl.textContent = `${displayData.quietest_count} scans (${displayData.quietest_percentage}%)`;
+            } else {
+                quietestHoursEl.textContent = 'N/A';
+                quietestCountEl.textContent = 'N/A';
+            }
         }
         
         function updateScanTypeEvolution() {
@@ -833,7 +986,13 @@
                 
                 Plotly.newPlot('metricsChart', traces, layout, config);
             }
-        });
-    </script>
+            
+            // Initialize time block projects chart
+            try {
+                if (allData && allData.projects_by_time_block) {
+                    updateTimeBlockProjectChart(allData.top_projects || {}, 'All Time Blocks');
+                }
+            } catch (err) {
+                console.error('Error initializing time block projects chart:', err);
 </body>
 </html>

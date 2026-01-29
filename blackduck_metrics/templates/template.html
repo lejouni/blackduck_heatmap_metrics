@@ -22,6 +22,18 @@
                 }
             }, 2000);
         });
+        
+        // Forward declarations - these will be replaced when main script loads
+        var _applyFilters, _applyProjectFilter, _clearAllFilters, _updateProjectListForFile;
+        var _filterProjectsByScanType, _filterProjectsByTimeBlock, _updateScanTypeEvolution;
+        
+        function applyFilters() { if (_applyFilters) _applyFilters(); }
+        function applyProjectFilter() { if (_applyProjectFilter) _applyProjectFilter(); }
+        function clearAllFilters() { if (_clearAllFilters) _clearAllFilters(); }
+        function updateProjectListForFile() { if (_updateProjectListForFile) _updateProjectListForFile(); }
+        function filterProjectsByScanType() { if (_filterProjectsByScanType) _filterProjectsByScanType(); }
+        function filterProjectsByTimeBlock() { if (_filterProjectsByTimeBlock) _filterProjectsByTimeBlock(); }
+        function updateScanTypeEvolution() { if (_updateScanTypeEvolution) _updateScanTypeEvolution(); }
     </script>
     <style>
         * {
@@ -451,24 +463,40 @@
         <div class="summary-cards">
             <div class="card">
                 <div class="card-title">🔥 Busiest Hours</div>
-                <div class="card-value" id="busiestHour" style="color: #e53e3e;">
-                    {% if analysis.summary.busiest_hour is not none %}
-                        {{ "%02d" | format(analysis.summary.busiest_hour) }}:00-{{ "%02d" | format(analysis.summary.busiest_hour_end) }}:00
-                        <div style="font-size: 0.4em; color: #666; margin-top: 5px;">{{ analysis.summary.busiest_count }} scans ({{ analysis.summary.busiest_percentage }}%)</div>
-                    {% else %}
+                <div class="card-value" style="color: #e53e3e;">
+                    <div id="busiestHours">
+                        {% if analysis.summary.busiest_hour is not none %}
+                        {{ "%02d:00" | format(analysis.summary.busiest_hour) }}-{{ "%02d:00" | format(analysis.summary.busiest_hour_end) }}
+                        {% else %}
                         N/A
-                    {% endif %}
+                        {% endif %}
+                    </div>
+                    <div id="busiestCount" style="font-size: 0.4em; color: #666; margin-top: 5px;">
+                        {% if analysis.summary.busiest_count %}
+                        {{ analysis.summary.busiest_count }} scans ({{ "%.1f" | format(analysis.summary.busiest_percentage) }}%)
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </div>
                 </div>
             </div>
             <div class="card">
                 <div class="card-title">😴 Quietest Hours</div>
-                <div class="card-value" id="quietestHour" style="color: #38a169;">
-                    {% if analysis.summary.quietest_hour is not none %}
-                        {{ "%02d" | format(analysis.summary.quietest_hour) }}:00-{{ "%02d" | format(analysis.summary.quietest_hour_end) }}:00
-                        <div style="font-size: 0.4em; color: #666; margin-top: 5px;">{{ analysis.summary.quietest_count }} scans ({{ analysis.summary.quietest_percentage }}%)</div>
-                    {% else %}
+                <div class="card-value" style="color: #38a169;">
+                    <div id="quietestHours">
+                        {% if analysis.summary.quietest_hour is not none %}
+                        {{ "%02d:00" | format(analysis.summary.quietest_hour) }}-{{ "%02d:00" | format(analysis.summary.quietest_hour_end) }}
+                        {% else %}
                         N/A
-                    {% endif %}
+                        {% endif %}
+                    </div>
+                    <div id="quietestCount" style="font-size: 0.4em; color: #666; margin-top: 5px;">
+                        {% if analysis.summary.quietest_count %}
+                        {{ analysis.summary.quietest_count }} scans ({{ "%.1f" | format(analysis.summary.quietest_percentage) }}%)
+                        {% else %}
+                        N/A
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>
@@ -543,6 +571,25 @@
                 <div id="projectBarChart" class="chart-container" style="min-height: 400px;"></div>
                 <div id="scanTypePieChart" class="chart-container" style="min-height: 400px;"></div>
             </div>
+            
+            {% if analysis.aggregated.projects_by_time_block %}
+            <h3 style="margin-top: 40px;">🕐 Top Projects by Time Block (3-hour intervals)</h3>
+            <div style="margin-bottom: 15px;">
+                <label for="timeBlockFilter" style="font-weight: 600; margin-right: 10px;">Filter by Time Block:</label>
+                <select id="timeBlockFilter" onchange="filterProjectsByTimeBlock()" style="padding: 8px 15px; font-size: 0.95em; border-radius: 5px; border: 1px solid #e2e8f0; background: white; cursor: pointer;">
+                    <option value="all">All Time Blocks</option>
+                    {% for time_block in ['06-09', '09-12', '12-15', '15-18', '18-21', '21-00', '00-03', '03-06'] %}
+                    {% if time_block in analysis.aggregated.projects_by_time_block %}
+                    <option value="{{ time_block }}">{{ time_block }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <div id="timeBlockProjectChart" class="chart-container" style="min-height: 400px;"></div>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
         
@@ -566,11 +613,6 @@
                 </div>
                 <div id="scanTypeEvolutionChart" class="chart-container"></div>
             </div>
-            
-            {% if chart_data.trends %}
-            <h3 style="margin-top: 30px;">Metric Trends</h3>
-            <div id="metricsChart" class="chart-container"></div>
-            {% endif %}
         </div>
         {% endif %}
         
@@ -588,19 +630,19 @@
         };
         
         // Store year-specific data
-        const yearData = {{ analysis.by_year | tojson | safe }};
+        const yearData = {{ analysis.by_year | default({}) | tojson | safe }};
         
         // Store project-specific data
-        const projectData = {{ analysis.by_project | tojson | safe }};
+        const projectData = {{ analysis.by_project | default({}) | tojson | safe }};
         
         // Store combined year-project data
-        const yearProjectData = {{ analysis.by_year_project | tojson | safe }};
+        const yearProjectData = {{ analysis.by_year_project | default({}) | tojson | safe }};
         
         // Store file-specific data (for multi-file zips)
-        const fileDataByFile = {{ analysis.by_file | tojson | safe }};
+        const fileDataByFile = {{ analysis.by_file | default({}) | tojson | safe }};
         
         const allData = {
-            total_files: {{ analysis.summary.total_files }},
+            total_files: {{ analysis.summary.total_files | default(0) }},
             total_rows: {{ analysis.summary.total_rows | default(0) }},
             unique_projects: {{ analysis.summary.unique_projects | default(0) }},
             total_scans: {{ analysis.summary.total_scans | default(0) }},
@@ -609,12 +651,15 @@
             scan_types: {{ analysis.summary.scan_types | default({}) | tojson | safe }},
             scan_types_success: {{ analysis.summary.scan_types_success | default({}) | tojson | safe }},
             scan_types_failed: {{ analysis.summary.scan_types_failed | default({}) | tojson | safe }},
-            top_projects: {{ analysis.aggregated.top_projects | tojson | safe }},
+            top_projects: {{ analysis.aggregated.top_projects | default({}) | tojson | safe }},
             top_projects_success: {{ analysis.aggregated.top_projects_success | default({}) | tojson | safe }},
             top_projects_failed: {{ analysis.aggregated.top_projects_failed | default({}) | tojson | safe }},
-            projects_by_scan_type: {{ analysis.aggregated.projects_by_scan_type | tojson | safe }},
+            projects_by_scan_type: {{ analysis.aggregated.projects_by_scan_type | default({}) | tojson | safe }},
             projects_by_scan_type_success: {{ analysis.aggregated.projects_by_scan_type_success | default({}) | tojson | safe }},
             projects_by_scan_type_failed: {{ analysis.aggregated.projects_by_scan_type_failed | default({}) | tojson | safe }},
+            projects_by_time_block: {{ analysis.aggregated.projects_by_time_block | default({}) | tojson | safe }},
+            projects_by_time_block_success: {{ analysis.aggregated.projects_by_time_block_success | default({}) | tojson | safe }},
+            projects_by_time_block_failed: {{ analysis.aggregated.projects_by_time_block_failed | default({}) | tojson | safe }},
             busiest_hour: {{ analysis.summary.busiest_hour | default('null') }},
             busiest_hour_end: {{ analysis.summary.busiest_hour_end | default('null') }},
             busiest_count: {{ analysis.summary.busiest_count | default(0) }},
@@ -638,11 +683,14 @@
             quietest_hour_failed: {{ analysis.summary.quietest_hour_failed | default('null') }},
             quietest_hour_end_failed: {{ analysis.summary.quietest_hour_end_failed | default('null') }},
             quietest_count_failed: {{ analysis.summary.quietest_count_failed | default(0) }},
-            quietest_percentage_failed: {{ analysis.summary.quietest_percentage_failed | default(0) }}
+            quietest_percentage_failed: {{ analysis.summary.quietest_percentage_failed | default(0) }},
+            time_blocks: {{ analysis.summary.time_blocks | default([]) | tojson | safe }},
+            time_blocks_success: {{ analysis.summary.time_blocks_success | default([]) | tojson | safe }},
+            time_blocks_failed: {{ analysis.summary.time_blocks_failed | default([]) | tojson | safe }}
         };
         
         // Generate charts
-        const chartData = {{ chart_data | safe }};
+        const chartData = {{ chart_data | tojson | safe }};
         let scanTypeEvolutionData = chartData && chartData.scan_type_evolution ? chartData.scan_type_evolution : {};
         
         // Debug output
@@ -652,8 +700,64 @@
         } else {
         }
         
+        // Filter projects by scan type (must be defined early for inline onchange handlers)
+        _filterProjectsByScanType = function filterProjectsByScanType() {
+            const selectedScanType = document.getElementById('scanTypeFilter').value;
+            const selectedStatus = document.getElementById('statusFilter') ? document.getElementById('statusFilter').value : 'all';
+            
+            if (selectedScanType === 'all') {
+                // No scan type filter - use top_projects based on status
+                if (selectedStatus === 'success') {
+                    updateProjectChart(allData.top_projects_success || {});
+                } else if (selectedStatus === 'failed') {
+                    updateProjectChart(allData.top_projects_failed || {});
+                } else {
+                    updateProjectChart(allData.top_projects);
+                }
+            } else {
+                // Scan type filter applied - use projects_by_scan_type based on status
+                let projectsForType;
+                if (selectedStatus === 'success') {
+                    projectsForType = (allData.projects_by_scan_type_success && allData.projects_by_scan_type_success[selectedScanType]) || {};
+                } else if (selectedStatus === 'failed') {
+                    projectsForType = (allData.projects_by_scan_type_failed && allData.projects_by_scan_type_failed[selectedScanType]) || {};
+                } else {
+                    projectsForType = (allData.projects_by_scan_type && allData.projects_by_scan_type[selectedScanType]) || {};
+                }
+                updateProjectChart(projectsForType);
+            }
+        }
+        
+        // Filter projects by time block (must be defined early for inline onchange handlers)
+        _filterProjectsByTimeBlock = function filterProjectsByTimeBlock() {
+            const selectedTimeBlock = document.getElementById('timeBlockFilter').value;
+            const selectedStatus = document.getElementById('statusFilter') ? document.getElementById('statusFilter').value : 'all';
+            
+            if (selectedTimeBlock === 'all') {
+                // Show all projects when "all" is selected
+                if (selectedStatus === 'success') {
+                    updateTimeBlockProjectChart(allData.top_projects_success || {}, 'All Time Blocks');
+                } else if (selectedStatus === 'failed') {
+                    updateTimeBlockProjectChart(allData.top_projects_failed || {}, 'All Time Blocks');
+                } else {
+                    updateTimeBlockProjectChart(allData.top_projects || {}, 'All Time Blocks');
+                }
+            } else {
+                // Show projects for specific time block based on status
+                let projectsForBlock;
+                if (selectedStatus === 'success') {
+                    projectsForBlock = (allData.projects_by_time_block_success && allData.projects_by_time_block_success[selectedTimeBlock]) || {};
+                } else if (selectedStatus === 'failed') {
+                    projectsForBlock = (allData.projects_by_time_block_failed && allData.projects_by_time_block_failed[selectedTimeBlock]) || {};
+                } else {
+                    projectsForBlock = (allData.projects_by_time_block && allData.projects_by_time_block[selectedTimeBlock]) || {};
+                }
+                updateTimeBlockProjectChart(projectsForBlock, selectedTimeBlock);
+            }
+        }
+        
         // Filter data by file, year and/or project
-        function applyFilters() {
+        _applyFilters = function applyFilters() {
             const fileFilterEl = document.getElementById('fileFilter');
             const yearFilterEl = document.getElementById('yearFilter');
             const projectFilterInput = document.getElementById('projectFilterInput');
@@ -709,7 +813,34 @@
                             scan_types_failed: yearFileData.scan_types_failed || {},
                             top_projects: yearFileData.top_projects,
                             top_projects_success: yearFileData.top_projects_success || {},
-                            top_projects_failed: yearFileData.top_projects_failed || {}
+                            top_projects_failed: yearFileData.top_projects_failed || {},
+                            time_blocks: yearFileData.time_blocks || [],
+                            time_blocks_success: yearFileData.time_blocks_success || [],
+                            time_blocks_failed: yearFileData.time_blocks_failed || [],
+                            busiest_hour: yearFileData.busiest_hour,
+                            busiest_hour_end: yearFileData.busiest_hour_end,
+                            busiest_count: yearFileData.busiest_count,
+                            busiest_percentage: yearFileData.busiest_percentage,
+                            quietest_hour: yearFileData.quietest_hour,
+                            quietest_hour_end: yearFileData.quietest_hour_end,
+                            quietest_count: yearFileData.quietest_count,
+                            quietest_percentage: yearFileData.quietest_percentage,
+                            busiest_hour_success: yearFileData.busiest_hour_success,
+                            busiest_hour_end_success: yearFileData.busiest_hour_end_success,
+                            busiest_count_success: yearFileData.busiest_count_success,
+                            busiest_percentage_success: yearFileData.busiest_percentage_success,
+                            quietest_hour_success: yearFileData.quietest_hour_success,
+                            quietest_hour_end_success: yearFileData.quietest_hour_end_success,
+                            quietest_count_success: yearFileData.quietest_count_success,
+                            quietest_percentage_success: yearFileData.quietest_percentage_success,
+                            busiest_hour_failed: yearFileData.busiest_hour_failed,
+                            busiest_hour_end_failed: yearFileData.busiest_hour_end_failed,
+                            busiest_count_failed: yearFileData.busiest_count_failed,
+                            busiest_percentage_failed: yearFileData.busiest_percentage_failed,
+                            quietest_hour_failed: yearFileData.quietest_hour_failed,
+                            quietest_hour_end_failed: yearFileData.quietest_hour_end_failed,
+                            quietest_count_failed: yearFileData.quietest_count_failed,
+                            quietest_percentage_failed: yearFileData.quietest_percentage_failed
                         };
                         updateDisplay(displayData, selectedYear, selectedProject, selectedFile, selectedStatus);
                     } else {
@@ -729,7 +860,34 @@
                             scan_types: projectFileData.scan_types,
                             scan_types_success: projectFileData.scan_types_success || {},
                             scan_types_failed: projectFileData.scan_types_failed || {},
-                            top_projects: {}
+                            top_projects: {},
+                            time_blocks: projectFileData.time_blocks || [],
+                            time_blocks_success: projectFileData.time_blocks_success || [],
+                            time_blocks_failed: projectFileData.time_blocks_failed || [],
+                            busiest_hour: projectFileData.busiest_hour,
+                            busiest_hour_end: projectFileData.busiest_hour_end,
+                            busiest_count: projectFileData.busiest_count,
+                            busiest_percentage: projectFileData.busiest_percentage,
+                            quietest_hour: projectFileData.quietest_hour,
+                            quietest_hour_end: projectFileData.quietest_hour_end,
+                            quietest_count: projectFileData.quietest_count,
+                            quietest_percentage: projectFileData.quietest_percentage,
+                            busiest_hour_success: projectFileData.busiest_hour_success,
+                            busiest_hour_end_success: projectFileData.busiest_hour_end_success,
+                            busiest_count_success: projectFileData.busiest_count_success,
+                            busiest_percentage_success: projectFileData.busiest_percentage_success,
+                            quietest_hour_success: projectFileData.quietest_hour_success,
+                            quietest_hour_end_success: projectFileData.quietest_hour_end_success,
+                            quietest_count_success: projectFileData.quietest_count_success,
+                            quietest_percentage_success: projectFileData.quietest_percentage_success,
+                            busiest_hour_failed: projectFileData.busiest_hour_failed,
+                            busiest_hour_end_failed: projectFileData.busiest_hour_end_failed,
+                            busiest_count_failed: projectFileData.busiest_count_failed,
+                            busiest_percentage_failed: projectFileData.busiest_percentage_failed,
+                            quietest_hour_failed: projectFileData.quietest_hour_failed,
+                            quietest_hour_end_failed: projectFileData.quietest_hour_end_failed,
+                            quietest_count_failed: projectFileData.quietest_count_failed,
+                            quietest_percentage_failed: projectFileData.quietest_percentage_failed
                         };
                         displayData.top_projects[selectedProject] = projectFileData.total_scans;
                         displayData.top_projects_success = {};
@@ -756,7 +914,34 @@
                             scan_types: yearProjectFileData.scan_types,
                             scan_types_success: yearProjectFileData.scan_types_success || {},
                             scan_types_failed: yearProjectFileData.scan_types_failed || {},
-                            top_projects: {}
+                            top_projects: {},
+                            time_blocks: yearProjectFileData.time_blocks || [],
+                            time_blocks_success: yearProjectFileData.time_blocks_success || [],
+                            time_blocks_failed: yearProjectFileData.time_blocks_failed || [],
+                            busiest_hour: yearProjectFileData.busiest_hour,
+                            busiest_hour_end: yearProjectFileData.busiest_hour_end,
+                            busiest_count: yearProjectFileData.busiest_count,
+                            busiest_percentage: yearProjectFileData.busiest_percentage,
+                            quietest_hour: yearProjectFileData.quietest_hour,
+                            quietest_hour_end: yearProjectFileData.quietest_hour_end,
+                            quietest_count: yearProjectFileData.quietest_count,
+                            quietest_percentage: yearProjectFileData.quietest_percentage,
+                            busiest_hour_success: yearProjectFileData.busiest_hour_success,
+                            busiest_hour_end_success: yearProjectFileData.busiest_hour_end_success,
+                            busiest_count_success: yearProjectFileData.busiest_count_success,
+                            busiest_percentage_success: yearProjectFileData.busiest_percentage_success,
+                            quietest_hour_success: yearProjectFileData.quietest_hour_success,
+                            quietest_hour_end_success: yearProjectFileData.quietest_hour_end_success,
+                            quietest_count_success: yearProjectFileData.quietest_count_success,
+                            quietest_percentage_success: yearProjectFileData.quietest_percentage_success,
+                            busiest_hour_failed: yearProjectFileData.busiest_hour_failed,
+                            busiest_hour_end_failed: yearProjectFileData.busiest_hour_end_failed,
+                            busiest_count_failed: yearProjectFileData.busiest_count_failed,
+                            busiest_percentage_failed: yearProjectFileData.busiest_percentage_failed,
+                            quietest_hour_failed: yearProjectFileData.quietest_hour_failed,
+                            quietest_hour_end_failed: yearProjectFileData.quietest_hour_end_failed,
+                            quietest_count_failed: yearProjectFileData.quietest_count_failed,
+                            quietest_percentage_failed: yearProjectFileData.quietest_percentage_failed
                         };
                         displayData.top_projects[selectedProject] = yearProjectFileData.total_scans;
                         displayData.top_projects_success = {};
@@ -790,6 +975,9 @@
                         top_projects: data.top_projects,
                         top_projects_success: data.top_projects_success || {},
                         top_projects_failed: data.top_projects_failed || {},
+                        time_blocks: data.time_blocks || [],
+                        time_blocks_success: data.time_blocks_success || [],
+                        time_blocks_failed: data.time_blocks_failed || [],
                         busiest_hour: data.busiest_hour,
                         busiest_hour_end: data.busiest_hour_end,
                         busiest_count: data.busiest_count,
@@ -834,6 +1022,9 @@
                         scan_types_success: data.scan_types_success || {},
                         scan_types_failed: data.scan_types_failed || {},
                         top_projects: {},
+                        time_blocks: data.time_blocks || [],
+                        time_blocks_success: data.time_blocks_success || [],
+                        time_blocks_failed: data.time_blocks_failed || [],
                         busiest_hour: data.busiest_hour,
                         busiest_hour_end: data.busiest_hour_end,
                         busiest_count: data.busiest_count,
@@ -883,6 +1074,9 @@
                         scan_types_success: data.scan_types_success || {},
                         scan_types_failed: data.scan_types_failed || {},
                         top_projects: {},
+                        time_blocks: data.time_blocks || [],
+                        time_blocks_success: data.time_blocks_success || [],
+                        time_blocks_failed: data.time_blocks_failed || [],
                         busiest_hour: data.busiest_hour,
                         busiest_hour_end: data.busiest_hour_end,
                         busiest_count: data.busiest_count,
@@ -924,14 +1118,45 @@
                         successful_scans: 0,
                         failed_scans: 0,
                         scan_types: {},
-                        top_projects: {}
+                        scan_types_success: {},
+                        scan_types_failed: {},
+                        top_projects: {},
+                        top_projects_success: {},
+                        top_projects_failed: {},
+                        time_blocks: [],
+                        time_blocks_success: [],
+                        time_blocks_failed: [],
+                        busiest_hour: null,
+                        busiest_hour_end: null,
+                        busiest_count: 0,
+                        busiest_percentage: 0,
+                        quietest_hour: null,
+                        quietest_hour_end: null,
+                        quietest_count: 0,
+                        quietest_percentage: 0,
+                        busiest_hour_success: null,
+                        busiest_hour_end_success: null,
+                        busiest_count_success: 0,
+                        busiest_percentage_success: 0,
+                        quietest_hour_success: null,
+                        quietest_hour_end_success: null,
+                        quietest_count_success: 0,
+                        quietest_percentage_success: 0,
+                        busiest_hour_failed: null,
+                        busiest_hour_end_failed: null,
+                        busiest_count_failed: 0,
+                        busiest_percentage_failed: 0,
+                        quietest_hour_failed: null,
+                        quietest_hour_end_failed: null,
+                        quietest_count_failed: 0,
+                        quietest_percentage_failed: 0
                     };
                     updateDisplay(displayData, selectedYear, selectedProject, selectedFile, selectedStatus);
                 }
             }
         }
         
-        function applyProjectFilter() {
+        _applyProjectFilter = function applyProjectFilter() {
             applyFilters();
         }
         
@@ -942,7 +1167,7 @@
             }
         }
         
-        function updateProjectListForFile() {
+        _updateProjectListForFile = function updateProjectListForFile() {
             const fileFilter = document.getElementById('fileFilter');
             const projectList = document.getElementById('projectList');
             const projectFilterInput = document.getElementById('projectFilterInput');
@@ -954,7 +1179,7 @@
             
             if (selectedFile === 'all') {
                 // Show all projects from all files
-                projectsToShow = {{ analysis.available_projects | tojson | safe }};
+                projectsToShow = {{ analysis.available_projects | default([]) | tojson | safe }};
             } else {
                 // Show only projects from selected file
                 const fileData = fileDataByFile[selectedFile];
@@ -979,7 +1204,7 @@
             }
         }
         
-        function clearAllFilters() {
+        _clearAllFilters = function clearAllFilters() {
             // Reset file filter
             const fileFilter = document.getElementById('fileFilter');
             if (fileFilter) {
@@ -1036,6 +1261,11 @@
                     filteredData.quietest_percentage = data.quietest_percentage_success;
                 }
                 
+                // Use success-specific time blocks (fallback to all scans if not available)
+                if (data.time_blocks_success && data.time_blocks_success.length > 0) {
+                    filteredData.time_blocks = data.time_blocks_success;
+                }
+                
                 // Use success-specific scan types (fallback to all scans if not available)
                 if (data.scan_types_success && Object.keys(data.scan_types_success).length > 0) {
                     filteredData.scan_types = data.scan_types_success;
@@ -1063,6 +1293,11 @@
                     filteredData.quietest_hour_end = data.quietest_hour_end_failed;
                     filteredData.quietest_count = data.quietest_count_failed;
                     filteredData.quietest_percentage = data.quietest_percentage_failed;
+                }
+                
+                // Use failed-specific time blocks (fallback to all scans if not available)
+                if (data.time_blocks_failed && data.time_blocks_failed.length > 0) {
+                    filteredData.time_blocks = data.time_blocks_failed;
                 }
                 
                 // Use failed-specific scan types (fallback to all scans if not available)
@@ -1098,8 +1333,8 @@
                 document.getElementById('failedScans').textContent = displayData.failed_scans;
                 updateSuccessRate(displayData.successful_scans, displayData.total_scans);
                 
-                // Update busiest and quietest hours
-                updateBusiestQuietestHours(displayData.busiest_hour, displayData.busiest_count, displayData.quietest_hour, displayData.quietest_count, displayData.busiest_percentage, displayData.quietest_percentage, displayData.busiest_hour_end, displayData.quietest_hour_end);
+                // Update busiest/quietest hours
+                updateBusiestQuietestHours(displayData, selectedStatus);
             } catch (err) {
                 console.error('Error updating stats:', err);
             }
@@ -1122,6 +1357,13 @@
                 updateScanTypePie(displayData.scan_types);
             } catch (err) {
                 console.error('Error updating scan type pie:', err);
+            }
+            
+            try {
+                // Update time block projects chart
+                filterProjectsByTimeBlock();
+            } catch (err) {
+                console.error('Error updating time block projects chart:', err);
             }
             
             try {
@@ -1344,31 +1586,6 @@
             }
         }
         
-        function updateBusiestQuietestHours(busiestHour, busiestCount, quietestHour, quietestCount, busiestPercentage, quietestPercentage, busiestHourEnd, quietestHourEnd) {
-            const busiestElement = document.getElementById('busiestHour');
-            const quietestElement = document.getElementById('quietestHour');
-            
-            if (busiestHour !== null && busiestHour !== undefined) {
-                const hourStart = String(busiestHour).padStart(2, '0');
-                const hourEnd = busiestHourEnd !== null && busiestHourEnd !== undefined ? String(busiestHourEnd).padStart(2, '0') : String((busiestHour + 3) % 24).padStart(2, '0');
-                const hourRange = hourStart + ':00-' + hourEnd + ':00';
-                const percentage = busiestPercentage !== null && busiestPercentage !== undefined ? busiestPercentage : 0;
-                busiestElement.innerHTML = hourRange + '<div style="font-size: 0.4em; color: #666; margin-top: 5px;">' + busiestCount + ' scans (' + percentage + '%)</div>';
-            } else {
-                busiestElement.textContent = 'N/A';
-            }
-            
-            if (quietestHour !== null && quietestHour !== undefined) {
-                const hourStart = String(quietestHour).padStart(2, '0');
-                const hourEnd = quietestHourEnd !== null && quietestHourEnd !== undefined ? String(quietestHourEnd).padStart(2, '0') : String((quietestHour + 3) % 24).padStart(2, '0');
-                const hourRange = hourStart + ':00-' + hourEnd + ':00';
-                const percentage = quietestPercentage !== null && quietestPercentage !== undefined ? quietestPercentage : 0;
-                quietestElement.innerHTML = hourRange + '<div style="font-size: 0.4em; color: #666; margin-top: 5px;">' + quietestCount + ' scans (' + percentage + '%)</div>';
-            } else {
-                quietestElement.textContent = 'N/A';
-            }
-        }
-        
         function updateScanTypes(scanTypes) {
             const container = document.getElementById('scanTypesBreakdown');
             if (!container) return;
@@ -1456,30 +1673,128 @@
             Plotly.react('projectBarChart', [trace], layout, config);
         }
         
-        function filterProjectsByScanType() {
-            const selectedScanType = document.getElementById('scanTypeFilter').value;
-            const selectedStatus = document.getElementById('statusFilter') ? document.getElementById('statusFilter').value : 'all';
+        function updateTimeBlockProjectChart(topProjects, timeBlock, statusFilter) {
+            statusFilter = statusFilter || 'all';
+            if (!topProjects || Object.keys(topProjects).length === 0) {
+                // Clear chart if no data
+                Plotly.purge('timeBlockProjectChart');
+                document.getElementById('timeBlockProjectChart').innerHTML = '<p style="text-align: center; padding: 50px; color: #666;">No data available for this time block</p>';
+                return;
+            }
             
-            if (selectedScanType === 'all') {
-                // No scan type filter - use top_projects based on status
-                if (selectedStatus === 'success') {
-                    updateProjectChart(allData.top_projects_success || {});
-                } else if (selectedStatus === 'failed') {
-                    updateProjectChart(allData.top_projects_failed || {});
-                } else {
-                    updateProjectChart(allData.top_projects);
+            // Sort and take top 10
+            const sorted = Object.entries(topProjects)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+            
+            const labels = sorted.map(item => item[0]);
+            const values = sorted.map(item => item[1]);
+            
+            // Determine hover text based on status filter
+            let hoverTemplate = '%{x} scans';
+            if (statusFilter === 'success') {
+                hoverTemplate = '%{x} successful scans';
+            } else if (statusFilter === 'failed') {
+                hoverTemplate = '%{x} failed scans';
+            }
+            
+            const trace = {
+                x: values,
+                y: labels,
+                type: 'bar',
+                orientation: 'h',
+                hovertemplate: hoverTemplate + '<extra></extra>',
+                marker: {
+                    color: 'rgba(0, 153, 153, 0.8)',
+                    line: {
+                        color: 'rgba(0, 153, 153, 1)',
+                        width: 1
+                    }
                 }
+            };
+            
+            // Dynamic title based on status filter and time block
+            let titlePrefix = 'Top Projects';
+            if (timeBlock !== 'All Time Blocks') {
+                titlePrefix = `Top Projects (${timeBlock})`;
+            }
+            let titleSuffix = '';
+            if (statusFilter === 'success') {
+                titleSuffix = ' - Successful Scans';
+            } else if (statusFilter === 'failed') {
+                titleSuffix = ' - Failed Scans';
+            }
+            
+            const layout = {
+                title: titlePrefix + titleSuffix,
+                xaxis: { title: 'Total Scans' },
+                yaxis: { title: '' },
+                height: 400,
+                margin: { l: 200 }
+            };
+            
+            Plotly.react('timeBlockProjectChart', [trace], layout, config);
+        }
+        
+        function updateBusiestQuietestHours(displayData, selectedStatus) {
+            const busiestHoursEl = document.getElementById('busiestHours');
+            const busiestCountEl = document.getElementById('busiestCount');
+            const quietestHoursEl = document.getElementById('quietestHours');
+            const quietestCountEl = document.getElementById('quietestCount');
+            
+            // Determine which metrics to use based on status filter
+            let busiestHour, busiestHourEnd, busiestCount, busiestPercentage;
+            let quietestHour, quietestHourEnd, quietestCount, quietestPercentage;
+            
+            if (selectedStatus === 'success') {
+                busiestHour = displayData.busiest_hour_success;
+                busiestHourEnd = displayData.busiest_hour_end_success;
+                busiestCount = displayData.busiest_count_success;
+                busiestPercentage = displayData.busiest_percentage_success;
+                quietestHour = displayData.quietest_hour_success;
+                quietestHourEnd = displayData.quietest_hour_end_success;
+                quietestCount = displayData.quietest_count_success;
+                quietestPercentage = displayData.quietest_percentage_success;
+            } else if (selectedStatus === 'failed') {
+                busiestHour = displayData.busiest_hour_failed;
+                busiestHourEnd = displayData.busiest_hour_end_failed;
+                busiestCount = displayData.busiest_count_failed;
+                busiestPercentage = displayData.busiest_percentage_failed;
+                quietestHour = displayData.quietest_hour_failed;
+                quietestHourEnd = displayData.quietest_hour_end_failed;
+                quietestCount = displayData.quietest_count_failed;
+                quietestPercentage = displayData.quietest_percentage_failed;
             } else {
-                // Scan type filter applied - use projects_by_scan_type based on status
-                let projectsForType;
-                if (selectedStatus === 'success') {
-                    projectsForType = (allData.projects_by_scan_type_success && allData.projects_by_scan_type_success[selectedScanType]) || {};
-                } else if (selectedStatus === 'failed') {
-                    projectsForType = (allData.projects_by_scan_type_failed && allData.projects_by_scan_type_failed[selectedScanType]) || {};
-                } else {
-                    projectsForType = (allData.projects_by_scan_type && allData.projects_by_scan_type[selectedScanType]) || {};
-                }
-                updateProjectChart(projectsForType);
+                busiestHour = displayData.busiest_hour;
+                busiestHourEnd = displayData.busiest_hour_end;
+                busiestCount = displayData.busiest_count;
+                busiestPercentage = displayData.busiest_percentage;
+                quietestHour = displayData.quietest_hour;
+                quietestHourEnd = displayData.quietest_hour_end;
+                quietestCount = displayData.quietest_count;
+                quietestPercentage = displayData.quietest_percentage;
+            }
+            
+            // Update busiest hours
+            if (busiestHour !== null && busiestHour !== undefined) {
+                const busiestStart = String(busiestHour).padStart(2, '0');
+                const busiestEnd = String(busiestHourEnd).padStart(2, '0');
+                busiestHoursEl.textContent = `${busiestStart}:00 - ${busiestEnd}:00`;
+                busiestCountEl.textContent = `${busiestCount} scans (${busiestPercentage}%)`;
+            } else {
+                busiestHoursEl.textContent = 'N/A';
+                busiestCountEl.textContent = 'N/A';
+            }
+            
+            // Update quietest hours
+            if (quietestHour !== null && quietestHour !== undefined) {
+                const quietestStart = String(quietestHour).padStart(2, '0');
+                const quietestEnd = String(quietestHourEnd).padStart(2, '0');
+                quietestHoursEl.textContent = `${quietestStart}:00 - ${quietestEnd}:00`;
+                quietestCountEl.textContent = `${quietestCount} scans (${quietestPercentage}%)`;
+            } else {
+                quietestHoursEl.textContent = 'N/A';
+                quietestCountEl.textContent = 'N/A';
             }
         }
         
@@ -1508,7 +1823,7 @@
             Plotly.react('scanTypePieChart', [trace], layout, config);
         }
         
-        function updateScanTypeEvolution(paramYear, paramProject) {
+        _updateScanTypeEvolution = function updateScanTypeEvolution(paramYear, paramProject) {
             // Get selected scan types from checkboxes
             const checkboxes = document.querySelectorAll('.scan-type-checkbox:checked');
             const selectedTypes = Array.from(checkboxes).map(cb => cb.value);
@@ -1724,6 +2039,15 @@
                 }
             } catch (err) {
                 console.error('Error in scan type evolution chart:', err);
+            }
+            
+            try {
+                // Initialize time block projects chart
+                if (allData && allData.projects_by_time_block) {
+                    updateTimeBlockProjectChart(allData.top_projects || {}, 'All Time Blocks', 'all');
+                }
+            } catch (err) {
+                console.error('Error initializing time block projects chart:', err);
             }
         });
     </script>

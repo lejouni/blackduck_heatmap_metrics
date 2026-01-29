@@ -85,7 +85,7 @@ generate_html_report(analysis, chart_data, "output_report.html")
 
 ```bash
 # Basic usage - generates report with default settings
-bdmetrics "C:\Users\JouniLehto\Downloads\heatmap-data.zip"
+bdmetrics "C:\Users\Downloads\heatmap-data.zip"
 
 # Specify output file
 bdmetrics "path/to/data.zip" -o custom_report.html
@@ -116,22 +116,12 @@ For large datasets with thousands of projects:
 - Use `--skip-detailed` to skip year+project combination charts (saves ~36% file size)
 - Example: Dataset with 37,706 projects → 7,261 projects (--min-scans 100) → 282 MB vs 456 MB baseline
 
-### Legacy Usage (if using main.py directly)
-
-```bash
-python main.py "path/to/your/heatmap-data.zip"
-```
-
-### Example
-
-```bash
-python main.py "heatmap-data.zip"
-```
-
-This will:
+Running the `bdmetrics` command will:
 1. Extract and read all CSV files from the zip archive
 2. Analyze Black Duck scan metrics
-3. Generate an interactive HTML report as `report_YYYYMMDD_HHMMSS.html`
+3. Generate two interactive HTML reports:
+   - Full report with all filters: `report_YYYYMMDD_HHMMSS.html`
+   - Simple report with year filter only: `report_YYYYMMDD_HHMMSS_simple.html`
 
 ## CSV Data Format
 
@@ -227,7 +217,6 @@ blackduck_heatmap_metrics/
 │   └── templates/
 │       ├── template.html        # Full report template (all filters)
 │       └── template_simple.html # Simple report template (year filter only)
-├── main.py                   # Legacy entry point
 ├── template.html             # Root template for development
 ├── template_simple.html      # Root simple template for development
 ├── setup.py                  # Package installation script

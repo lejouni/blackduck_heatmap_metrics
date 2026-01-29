@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 import pandas as pd
 import numpy as np
-from jinja2 import Template
+from jinja2 import Template, Undefined
 import json
 from datetime import datetime
 from tqdm import tqdm
@@ -17,6 +17,14 @@ try:
 except ImportError:
     # Fallback for Python < 3.9
     from importlib_resources import files
+
+
+class UndefinedSafeJSONEncoder(json.JSONEncoder):
+    """JSON encoder that converts Jinja2 Undefined to None."""
+    def default(self, obj):
+        if isinstance(obj, Undefined):
+            return None
+        return super().default(obj)
 
 
 def read_csv_from_zip(zip_path):
@@ -52,17 +60,25 @@ def read_csv_from_zip(zip_path):
 
 def calculate_busy_quiet_hours(data):
     """
-    Calculate the busiest and quietest 3-hour timeframes of the day from the data.
+    Calculate the distribution of scans across 3-hour time blocks.
+    Time blocks: 06-09, 09-12, 12-15, 15-18, 18-21, 21-00, 00-03, 03-06
     Also calculates these metrics separately for successful and failed scans.
     
     Args:
         data: DataFrame with 'hour_parsed' column and optionally 'is_success' and 'is_failure' columns
         
     Returns:
-        dict: Dictionary containing busiest and quietest 3-hour timeframes with their scan counts and percentages
+        dict: Dictionary containing distribution of scans across time blocks and busiest/quietest blocks
               Includes separate metrics for all scans, successful scans only, and failed scans only
     """
+    # Define the 8 time blocks in order: 06-09, 09-12, 12-15, 15-18, 18-21, 21-00, 00-03, 03-06
+    time_blocks = [6, 9, 12, 15, 18, 21, 0, 3]
+    time_block_labels = ['06-09', '09-12', '12-15', '15-18', '18-21', '21-00', '00-03', '03-06']
+    
     result = {
+        'time_blocks': [],  # List of dicts with time block info
+        'time_blocks_success': [],
+        'time_blocks_failed': [],
         'busiest_hour': None,
         'busiest_hour_end': None,
         'busiest_count': 0,
@@ -97,23 +113,57 @@ def calculate_busy_quiet_hours(data):
     if 'hour_parsed' not in data.columns:
         return result
     
+    def map_hour_to_block(hour):
+        """Map hour (0-23) to time block start hour"""
+        if 6 <= hour < 9:
+            return 6
+        elif 9 <= hour < 12:
+            return 9
+        elif 12 <= hour < 15:
+            return 12
+        elif 15 <= hour < 18:
+            return 15
+        elif 18 <= hour < 21:
+            return 18
+        elif 21 <= hour < 24:
+            return 21
+        elif 0 <= hour < 3:
+            return 0
+        else:  # 3 <= hour < 6
+            return 3
+    
     def calc_metrics(subset_data, prefix=''):
         """Helper function to calculate metrics for a data subset"""
         metrics = {}
+        time_blocks_list = []
+        
         if len(subset_data) == 0:
-            return metrics
+            return metrics, time_blocks_list
             
         try:
             # Extract hour of day (0-23)
             subset_copy = subset_data.copy()
             subset_copy['hour_of_day'] = subset_copy['hour_parsed'].dt.hour
             
-            # Create 3-hour blocks (0-2, 3-5, 6-8, 9-11, 12-14, 15-17, 18-20, 21-23)
-            subset_copy['hour_block'] = (subset_copy['hour_of_day'] // 3) * 3
+            # Map hours to time blocks
+            subset_copy['hour_block'] = subset_copy['hour_of_day'].apply(map_hour_to_block)
             
-            # Count scans per 3-hour block
+            # Count scans per time block
             block_counts = subset_copy.groupby('hour_block').size()
             total_scans = len(subset_copy)
+            
+            # Create time blocks list with all blocks (even if 0 count)
+            for i, block_start in enumerate(time_blocks):
+                block_end = (block_start + 3) % 24
+                count = int(block_counts.get(block_start, 0))
+                percentage = round((count / total_scans) * 100, 1) if total_scans > 0 else 0
+                time_blocks_list.append({
+                    'label': time_block_labels[i],
+                    'start': block_start,
+                    'end': block_end,
+                    'count': count,
+                    'percentage': percentage
+                })
             
             if len(block_counts) > 0 and total_scans > 0:
                 # Find busiest 3-hour block
@@ -132,21 +182,27 @@ def calculate_busy_quiet_hours(data):
         except Exception as e:
             print(f"Warning: Could not calculate busy/quiet hours for {prefix}: {e}")
         
-        return metrics
+        return metrics, time_blocks_list
     
     try:
         # Calculate for all scans
-        result.update(calc_metrics(data, ''))
+        metrics, time_blocks_list = calc_metrics(data, '')
+        result.update(metrics)
+        result['time_blocks'] = time_blocks_list
         
         # Calculate for successful scans only
         if 'is_success' in data.columns:
             success_data = data[data['is_success'] == True]
-            result.update(calc_metrics(success_data, '_success'))
+            metrics, time_blocks_list = calc_metrics(success_data, '_success')
+            result.update(metrics)
+            result['time_blocks_success'] = time_blocks_list
         
         # Calculate for failed scans only
         if 'is_failure' in data.columns:
             failed_data = data[data['is_failure'] == True]
-            result.update(calc_metrics(failed_data, '_failed'))
+            metrics, time_blocks_list = calc_metrics(failed_data, '_failed')
+            result.update(metrics)
+            result['time_blocks_failed'] = time_blocks_list
     
     except Exception as e:
         print(f"Warning: Could not calculate busy/quiet hours: {e}")
@@ -158,11 +214,17 @@ def copy_busy_quiet_metrics(target_dict, busy_quiet):
     """
     Helper function to copy all busiest/quietest hour metrics from busy_quiet dict to target dict.
     Includes metrics for all scans, successful scans only, and failed scans only.
+    Also copies time_blocks data.
     
     Args:
         target_dict: Dictionary to copy metrics to
         busy_quiet: Dictionary containing busiest/quietest hour metrics from calculate_busy_quiet_hours
     """
+    # Time blocks data
+    target_dict['time_blocks'] = busy_quiet.get('time_blocks', [])
+    target_dict['time_blocks_success'] = busy_quiet.get('time_blocks_success', [])
+    target_dict['time_blocks_failed'] = busy_quiet.get('time_blocks_failed', [])
+    
     # All scans metrics
     target_dict['busiest_hour'] = busy_quiet['busiest_hour']
     target_dict['busiest_hour_end'] = busy_quiet['busiest_hour_end']
@@ -192,6 +254,89 @@ def copy_busy_quiet_metrics(target_dict, busy_quiet):
     target_dict['quietest_hour_end_failed'] = busy_quiet['quietest_hour_end_failed']
     target_dict['quietest_count_failed'] = busy_quiet['quietest_count_failed']
     target_dict['quietest_percentage_failed'] = busy_quiet['quietest_percentage_failed']
+
+
+def calculate_projects_by_time_block(data):
+    """
+    Calculate top projects for each 3-hour time block.
+    Time blocks: 06-09, 09-12, 12-15, 15-18, 18-21, 21-00, 00-03, 03-06
+    
+    Args:
+        data: DataFrame with 'hour_parsed' and 'projectName' columns, 
+              optionally with 'is_success' and 'is_failure' columns
+        
+    Returns:
+        dict: Dictionary with projects_by_time_block, projects_by_time_block_success, projects_by_time_block_failed
+    """
+    result = {
+        'projects_by_time_block': {},
+        'projects_by_time_block_success': {},
+        'projects_by_time_block_failed': {}
+    }
+    
+    if data is None or len(data) == 0:
+        return result
+    
+    if 'hour_parsed' not in data.columns or 'projectName' not in data.columns:
+        return result
+    
+    # Define the 8 time blocks
+    time_block_labels = ['06-09', '09-12', '12-15', '15-18', '18-21', '21-00', '00-03', '03-06']
+    
+    def map_hour_to_block_label(hour):
+        """Map hour (0-23) to time block label"""
+        if 6 <= hour < 9:
+            return '06-09'
+        elif 9 <= hour < 12:
+            return '09-12'
+        elif 12 <= hour < 15:
+            return '12-15'
+        elif 15 <= hour < 18:
+            return '15-18'
+        elif 18 <= hour < 21:
+            return '18-21'
+        elif 21 <= hour < 24:
+            return '21-00'
+        elif 0 <= hour < 3:
+            return '00-03'
+        else:  # 3 <= hour < 6
+            return '03-06'
+    
+    try:
+        # Extract hour of day and map to time block
+        data_copy = data.copy()
+        data_copy['hour_of_day'] = data_copy['hour_parsed'].dt.hour
+        data_copy['time_block'] = data_copy['hour_of_day'].apply(map_hour_to_block_label)
+        
+        # Calculate for all scans
+        for time_block in time_block_labels:
+            block_data = data_copy[data_copy['time_block'] == time_block]
+            if len(block_data) > 0:
+                top_projects = block_data.groupby('projectName').size().nlargest(10).to_dict()
+                result['projects_by_time_block'][time_block] = top_projects
+        
+        # Calculate for successful scans only
+        if 'is_success' in data_copy.columns:
+            success_data = data_copy[data_copy['is_success'] == True]
+            for time_block in time_block_labels:
+                block_data = success_data[success_data['time_block'] == time_block]
+                if len(block_data) > 0:
+                    top_projects = block_data.groupby('projectName').size().nlargest(10).to_dict()
+                    result['projects_by_time_block_success'][time_block] = top_projects
+        
+        # Calculate for failed scans only
+        if 'is_failure' in data_copy.columns:
+            failed_data = data_copy[data_copy['is_failure'] == True]
+            for time_block in time_block_labels:
+                block_data = failed_data[failed_data['time_block'] == time_block]
+                if len(block_data) > 0:
+                    top_projects = block_data.groupby('projectName').size().nlargest(10).to_dict()
+                    result['projects_by_time_block_failed'][time_block] = top_projects
+    
+    except Exception as e:
+        print(f"Warning: Could not calculate projects by time block: {e}")
+    
+    return result
 
 
 def calculate_scan_types_by_status(data):
@@ -288,9 +433,61 @@ def analyze_data(dataframes):
         dict: Analysis results
     """
     analysis = {
-        'summary': {},
+        'summary': {
+            # Initialize all expected fields with defaults
+            'total_files': 0,
+            'total_rows': 0,
+            'unique_projects': 0,
+            'total_scans': 0,
+            'successful_scans': 0,
+            'failed_scans': 0,
+            'scan_types': {},
+            'scan_types_success': {},
+            'scan_types_failed': {},
+            'busiest_hour': None,
+            'busiest_hour_end': None,
+            'busiest_count': 0,
+            'busiest_percentage': 0,
+            'quietest_hour': None,
+            'quietest_hour_end': None,
+            'quietest_count': 0,
+            'quietest_percentage': 0,
+            'busiest_hour_success': None,
+            'busiest_hour_end_success': None,
+            'busiest_count_success': 0,
+            'busiest_percentage_success': 0,
+            'quietest_hour_success': None,
+            'quietest_hour_end_success': None,
+            'quietest_count_success': 0,
+            'quietest_percentage_success': 0,
+            'busiest_hour_failed': None,
+            'busiest_hour_end_failed': None,
+            'busiest_count_failed': 0,
+            'busiest_percentage_failed': 0,
+            'quietest_hour_failed': None,
+            'quietest_hour_end_failed': None,
+            'quietest_count_failed': 0,
+            'quietest_percentage_failed': 0,
+            'time_blocks': [],
+            'time_blocks_success': [],
+            'time_blocks_failed': []
+        },
         'files': [],
-        'aggregated': {},
+        'aggregated': {
+            # Initialize all expected aggregated fields with defaults
+            'by_project': {},
+            'scan_types': {},
+            'projects_by_scan_type': {},
+            'projects_by_scan_type_success': {},
+            'projects_by_scan_type_failed': {},
+            'projects_by_time_block': {},
+            'projects_by_time_block_success': {},
+            'projects_by_time_block_failed': {},
+            'top_projects': {},
+            'top_projects_success': {},
+            'top_projects_failed': {},
+            'states': {}
+        },
         'by_year': {},
         'by_project': {},
         'by_year_project': {},
@@ -453,6 +650,11 @@ def analyze_data(dataframes):
                     if len(failed_scan_type_data) > 0:
                         top_projects_failed = failed_scan_type_data.groupby('projectName').size().nlargest(15).to_dict()
                         analysis['aggregated']['projects_by_scan_type_failed'][scan_type] = top_projects_failed
+        
+        # Top projects by time block (all, success, failed)
+        if 'hour_parsed' in all_data.columns and 'projectName' in all_data.columns:
+            time_block_projects = calculate_projects_by_time_block(all_data)
+            analysis['aggregated'].update(time_block_projects)
         
         # State distribution
         if 'state' in all_data.columns:
@@ -1084,12 +1286,19 @@ def generate_html_report(analysis, chart_data, output_path, min_scans=10):
     
     template = Template(template_content)
     
+    # Monkey-patch json.dumps to handle Undefined objects
+    original_dumps = json.dumps
+    json.dumps = lambda obj, **kw: original_dumps(obj, cls=UndefinedSafeJSONEncoder, **kw)
+    
     html_content = template.render(
         analysis=analysis,
-        chart_data=json.dumps(chart_data),
+        chart_data=chart_data,
         generated_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         min_scans=min_scans
     )
+    
+    # Restore original json.dumps
+    json.dumps = original_dumps
     
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_content)
@@ -1101,7 +1310,7 @@ def generate_html_report(analysis, chart_data, output_path, min_scans=10):
     else:
         size_str = f"{file_size / 1024:.2f} KB"
     
-    print(f"\n✅ Full HTML report (with filters) generated: {output_path} ({size_str})")
+    print(f"\n[SUCCESS] Full HTML report (with filters) generated: {output_path} ({size_str})")
     
     # Generate the simplified report without filters
     try:
@@ -1119,12 +1328,18 @@ def generate_html_report(analysis, chart_data, output_path, min_scans=10):
     
     template_simple = Template(template_simple_content)
     
+    # Monkey-patch json.dumps again for simple template
+    json.dumps = lambda obj, **kw: original_dumps(obj, cls=UndefinedSafeJSONEncoder, **kw)
+    
     html_simple_content = template_simple.render(
         analysis=analysis,
-        chart_data=json.dumps(chart_data),
+        chart_data=chart_data,
         generated_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         min_scans=min_scans
     )
+    
+    # Restore original json.dumps
+    json.dumps = original_dumps
     
     # Create simple report filename by inserting '_simple' before .html
     output_path_obj = Path(output_path)
@@ -1140,5 +1355,5 @@ def generate_html_report(analysis, chart_data, output_path, min_scans=10):
     else:
         size_str_simple = f"{file_size_simple / 1024:.2f} KB"
     
-    print(f"✅ Simple HTML report (no filters) generated: {simple_output_path} ({size_str_simple})")
+    print(f"[SUCCESS] Simple HTML report (no filters) generated: {simple_output_path} ({size_str_simple})")
     print(f"Report size: {size_str}")
