@@ -49,6 +49,12 @@ def main():
     )
     
     parser.add_argument(
+        '--start-year',
+        type=int,
+        help='Only analyze data from this year onwards (e.g., --start-year 2020 to exclude data before 2020)'
+    )
+    
+    parser.add_argument(
         '-v', '--version',
         action='version',
         version=f'%(prog)s {__version__}'
@@ -74,7 +80,15 @@ def main():
         
         # Analyze data
         print("\nAnalyzing data...")
-        analysis = analyze_data(dataframes)
+        if args.start_year:
+            print(f"  Filtering data from year {args.start_year} onwards (for full report)")
+        analysis = analyze_data(dataframes, start_year=args.start_year)
+        
+        # For simple report, generate analysis with all years if start_year was specified
+        analysis_simple = None
+        if args.start_year:
+            print(f"  Generating simple report data (all years)")
+            analysis_simple = analyze_data(dataframes, start_year=None)
         
         # Generate chart data
         print(f"Generating charts (min scans per project: {args.min_scans})...")
@@ -82,13 +96,17 @@ def main():
             print("  Skip detailed mode: Year+project combinations will be skipped")
         chart_data = generate_chart_data(dataframes, min_scans=args.min_scans, skip_detailed=args.skip_detailed)
         
+        # For simple report, use the same chart data (generated from all years)
+        chart_data_simple = chart_data if args.start_year else None
+        
         # Create output directory if it doesn't exist
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         # Generate HTML report
         print("Creating HTML report...")
-        generate_html_report(analysis, chart_data, args.output, min_scans=args.min_scans)
+        generate_html_report(analysis, chart_data, args.output, min_scans=args.min_scans, 
+                           analysis_simple=analysis_simple, chart_data_simple=chart_data_simple)
         
         # Calculate execution time
         elapsed_time = time.time() - start_time

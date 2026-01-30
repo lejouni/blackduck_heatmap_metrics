@@ -94,12 +94,15 @@ bdmetrics "path/to/data.zip" -o custom_report.html
 # Only projects with 50+ scans will appear in trend charts
 bdmetrics "path/to/data.zip" --min-scans 50
 
+# Filter data from a specific year onwards (excludes older data)
+bdmetrics "path/to/data.zip" --start-year 2020
+
 # Skip detailed year+project combinations for faster processing and smaller files
 # Recommended for large datasets (reduces file size by ~36%)
 bdmetrics "path/to/data.zip" --skip-detailed
 
 # Combine options for optimal performance with large datasets
-bdmetrics "path/to/data.zip" --min-scans 100 --skip-detailed -o report.html
+bdmetrics "path/to/data.zip" --min-scans 100 --skip-detailed --start-year 2020 -o report.html
 
 # Show version
 bdmetrics --version
@@ -114,6 +117,7 @@ For large datasets with thousands of projects:
 
 - Use `--min-scans` to filter out low-activity projects from trend charts (default: 10)
 - Use `--skip-detailed` to skip year+project combination charts (saves ~36% file size)
+- Use `--start-year` to exclude historical data before a specific year (e.g., `--start-year 2020`)
 - Example: Dataset with 37,706 projects → 7,261 projects (--min-scans 100) → 282 MB vs 456 MB baseline
 
 Running the `bdmetrics` command will:

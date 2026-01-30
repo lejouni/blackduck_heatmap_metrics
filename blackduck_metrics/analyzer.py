@@ -422,12 +422,13 @@ def calculate_top_projects_by_status(data):
     return result
 
 
-def analyze_data(dataframes):
+def analyze_data(dataframes, start_year=None):
     """
     Analyze the data and prepare statistics for visualization.
     
     Args:
         dataframes: Dictionary of DataFrames
+        start_year: Optional integer to filter data from this year onwards
         
     Returns:
         dict: Analysis results
@@ -497,6 +498,18 @@ def analyze_data(dataframes):
     
     # Combine all dataframes for aggregated analysis
     all_data = pd.concat(dataframes.values(), ignore_index=True) if len(dataframes) > 0 else None
+    
+    # Apply year filter if specified
+    if all_data is not None and start_year is not None:
+        if 'hour' in all_data.columns:
+            # Parse year from hour column
+            all_data['year_temp'] = pd.to_datetime(all_data['hour']).dt.year
+            rows_before = len(all_data)
+            all_data = all_data[all_data['year_temp'] >= start_year].copy()
+            all_data = all_data.drop('year_temp', axis=1)
+            rows_after = len(all_data)
+            if rows_before > rows_after:
+                print(f"  Filtered out {rows_before - rows_after} rows from before {start_year}")
     
     # Pre-compute state classifications once (vectorized operation)
     success_states = ['COMPLETED', 'SUCCESS', 'COMPLETE']
@@ -942,10 +955,10 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False):
                     # Number of scans over time (count of records per hour)
                     time_trend = data_sorted.groupby('hour', sort=False).size().reset_index(name='count')
                     
-                    # Sample data if too many points (> 200) to reduce HTML size
-                    if len(time_trend) > 200:
-                        # Keep every nth point to get approximately 200 points
-                        step = len(time_trend) // 200
+                    # Sample data if too many points (> 100) to reduce HTML size
+                    if len(time_trend) > 100:
+                        # Keep every nth point to get approximately 100 points
+                        step = len(time_trend) // 100
                         time_trend = time_trend.iloc[::step]
                     
                     series_list.append({
@@ -960,8 +973,8 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False):
                         size_trend = data_sorted.groupby('hour', sort=False)['totalScanSize'].sum().reset_index()
                         
                         # Sample data if too many points
-                        if len(size_trend) > 1000:
-                            step = len(size_trend) // 1000
+                        if len(size_trend) > 100:
+                            step = len(size_trend) // 100
                             size_trend = size_trend.iloc[::step]
                         
                         series_list.append({
@@ -998,6 +1011,15 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False):
                     # Filter projects by minimum scan count
                     project_scan_counts = all_data.groupby('projectName').size()
                     projects_for_charts = [p for p in all_projects if project_scan_counts.get(p, 0) >= min_scans]
+                    
+                    # Hard limit: Cap at 1000 projects max to prevent browser performance issues
+                    MAX_PROJECTS_FOR_CHARTS = 1000
+                    if len(projects_for_charts) > MAX_PROJECTS_FOR_CHARTS:
+                        # Sort by scan count descending and take top N
+                        projects_with_counts = [(p, project_scan_counts.get(p, 0)) for p in projects_for_charts]
+                        projects_with_counts.sort(key=lambda x: x[1], reverse=True)
+                        projects_for_charts = [p for p, _ in projects_with_counts[:MAX_PROJECTS_FOR_CHARTS]]
+                        print(f"  ⚠ Limiting to top {MAX_PROJECTS_FOR_CHARTS} projects (out of {len(all_projects)}) for browser performance")
                     
                     if len(projects_for_charts) < len(all_projects):
                         print(f"  Filtered to {len(projects_for_charts)}/{len(all_projects)} projects with >= {min_scans} scans")
@@ -1060,9 +1082,9 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False):
                                 scan_type_data = data_sorted[data_sorted['scanType'] == scan_type]
                                 time_trend = scan_type_data.groupby('hour', sort=False).size().reset_index(name='count')
                                 
-                                # Sample data if too many points (> 100 per scan type)
-                                if len(time_trend) > 100:
-                                    step = len(time_trend) // 100
+                                # Sample data if too many points (> 50 per scan type)
+                                if len(time_trend) > 50:
+                                    step = len(time_trend) // 50
                                     time_trend = time_trend.iloc[::step]
                                 
                                 evolution[scan_type] = {
@@ -1259,20 +1281,24 @@ def convert_to_json_serializable(obj):
         return obj
 
 
-def generate_html_report(analysis, chart_data, output_path, min_scans=10):
+def generate_html_report(analysis, chart_data, output_path, min_scans=10, analysis_simple=None, chart_data_simple=None):
     """
     Generate HTML reports using Jinja2 templates.
     Creates both a full report (with filters) and a simplified report (without filters).
     
     Args:
-        analysis: Analysis results
-        chart_data: Chart data
+        analysis: Analysis results for the full report
+        chart_data: Chart data for the full report
         output_path: Path to save the HTML report
         min_scans: Minimum number of scans threshold for including projects in charts
+        analysis_simple: Optional separate analysis for simple report (used when filtering by year)
+        chart_data_simple: Optional separate chart data for simple report (used when filtering by year)
     """
     # Convert all numpy/pandas types to native Python types for JSON serialization
     analysis = convert_to_json_serializable(analysis)
     chart_data = convert_to_json_serializable(chart_data)
+    if analysis_simple is not None:
+        analysis_simple = convert_to_json_serializable(analysis_simple)
     
     # Generate the full report with filters
     try:
@@ -1328,12 +1354,16 @@ def generate_html_report(analysis, chart_data, output_path, min_scans=10):
     
     template_simple = Template(template_simple_content)
     
+    # Use separate analysis and chart data for simple report if provided (e.g., when filtering by year)
+    simple_analysis = analysis_simple if analysis_simple is not None else analysis
+    simple_chart_data = chart_data_simple if chart_data_simple is not None else chart_data
+    
     # Monkey-patch json.dumps again for simple template
     json.dumps = lambda obj, **kw: original_dumps(obj, cls=UndefinedSafeJSONEncoder, **kw)
     
     html_simple_content = template_simple.render(
-        analysis=analysis,
-        chart_data=chart_data,
+        analysis=simple_analysis,
+        chart_data=simple_chart_data,
         generated_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         min_scans=min_scans
     )
