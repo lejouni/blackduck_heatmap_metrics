@@ -83,7 +83,7 @@ param(
   [string]$NewVersion,
 
   [ValidateSet('testpypi','pypi')]
-  [string]$Repository = 'testpypi',
+  [string]$Repository = 'pypi',
 
   [switch]$NoInstallTest,
   [switch]$SkipBuild,
