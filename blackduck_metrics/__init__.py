@@ -6,8 +6,8 @@ Generates interactive HTML dashboards with time series analysis and filtering.
 """
 
 __version__ = "0.1.8"
-__author__ = "Your Name"
-__email__ = "your.email@example.com"
+__author__ = "Jouni Lehto"
+__email__ = "lehto.jouni@gmail.com"
 
 from .analyzer import read_csv_from_zip, analyze_data, generate_chart_data, generate_html_report
 
