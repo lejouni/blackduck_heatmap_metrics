@@ -29,6 +29,7 @@ bdmetrics "data.zip" --project-group "Demo" \
 - [Installation](#installation)
 - [Usage](#usage)
   - [Command-Line Examples](#command-line-examples)
+  - [Multi-CSV File Support](#multi-csv-file-support)
   - [Choosing the Right Report Type](#choosing-the-right-report-type)
   - [Performance Optimization](#performance-optimization)
   - [Command-Line Options Reference](#command-line-options-reference)
@@ -66,9 +67,11 @@ Before using this tool, you need to export the heatmap data from your Black Duck
 ## Features
 
 - 📦 **Zip Archive Support**: Reads CSV files directly from zip archives
-- 📊 **Interactive Charts**: Plotly-powered visualizations with hover details
+- � **Multi-CSV Support**: Handles multiple CSV files (different Black Duck instances) with aggregated view
+- �📊 **Interactive Charts**: Plotly-powered visualizations with hover details
 - 🎯 **Black Duck Specific**: Tailored for Black Duck scan heatmap data
 - 📅 **Multi-level Filtering**: Filter by file, year, and project
+- 🏢 **Project Group Filtering**: Filter by Black Duck project groups (includes nested sub-groups)
 - 🔍 **Scan Type Analysis**: Track scan type distribution and evolution over time
 - ✅ **Success/Failure Metrics**: Monitor scan success rates
 - 📱 **Responsive Design**: Works on desktop and mobile devices
@@ -137,7 +140,7 @@ bdmetrics "path/to/data.zip" --min-scans 50
 bdmetrics "path/to/data.zip" --start-year 2020
 
 # Filter by Black Duck project group (requires Black Duck connection)
-# Only projects in the specified group will be included in the analysis
+# Includes all projects in the specified group and all nested sub-groups
 bdmetrics "path/to/data.zip" --project-group "Demo"
 
 # Filter by project group with credentials passed as arguments
@@ -160,6 +163,41 @@ bdmetrics --version
 # Show help
 bdmetrics --help
 ```
+
+### Multi-CSV File Support
+
+The tool automatically handles zip archives containing **multiple CSV files**, ideal for comparing different Black Duck SCA instances or environments.
+
+**Use Case Examples:**
+- Compare **Production vs. Staging vs. Development** Black Duck instances
+- Analyze **Regional instances** (US, EU, APAC) in one report
+- Track metrics across **different Black Duck servers** in your organization
+
+**How it works:**
+
+```bash
+# Process a zip with multiple CSV files (different Black Duck instances)
+bdmetrics "multi-instance-data.zip"
+
+# The report will:
+# 1. Show AGGREGATED statistics from all instances in the summary
+# 2. Provide a FILE DROPDOWN to select specific instances
+# 3. Dynamically update charts when you select an instance
+```
+
+**Example zip structure:**
+```
+multi-instance-data.zip
+├── production-blackduck.csv      # 50,000 scans
+├── staging-blackduck.csv          # 15,000 scans
+└── development-blackduck.csv      # 8,000 scans
+```
+
+**Report behavior:**
+- **Default view (All Files)**: Shows aggregated 73,000 total scans
+- **File dropdown selection**: Choose "production-blackduck.csv" → Shows only 50,000 scans
+- **Charts update**: All visualizations filter to the selected instance
+- **Cross-instance comparison**: Switch between files to compare metrics
 
 ### Choosing the Right Report Type
 
@@ -213,7 +251,7 @@ For large datasets with thousands of projects:
 | `--skip-detailed` | Flag | `False` | Skip year+project charts (reduces file size ~36%) |
 | `--simple` | Flag | `False` | Generate simplified report without interactive filters |
 | `--start-year` | Integer | None | Filter data from this year onwards (e.g., `2020`) |
-| `--project-group` | String | None | Filter by Black Duck project group name |
+| `--project-group` | String | None | Filter by Black Duck project group (includes all nested sub-groups) |
 | `--bd-url` | String | `$BD_URL` | Black Duck server URL |
 | `--bd-token` | String | `$BD_API_TOKEN` | Black Duck API token |
 | `-v, --version` | Flag | - | Show version and exit |
@@ -224,6 +262,26 @@ For large datasets with thousands of projects:
 ### Using Project Group Filter
 
 The `--project-group` option allows you to filter analysis to only include projects that are members of a specific Black Duck project group. This requires connecting to your Black Duck server.
+
+**Important:** When you specify a project group, the tool will automatically include:
+- ✅ All projects directly in the specified group
+- ✅ All projects in any sub-project-groups (nested groups)
+- ✅ All projects in sub-sub-project-groups (recursively traverses the entire hierarchy)
+
+This means if you have a structure like:
+```
+Business Unit A
+├── Team 1
+│   ├── Project A
+│   └── Project B
+├── Team 2
+│   ├── Subteam 2.1
+│   │   └── Project C
+│   └── Project D
+└── Project E
+```
+
+Filtering by `--project-group "Business Unit A"` will include Projects A, B, C, D, and E.
 
 **Getting a Black Duck API Token:**
 
@@ -313,6 +371,27 @@ The tool expects CSV files with the following columns:
 - `state`: Scan state (COMPLETED, FAILED, etc.)
 - `transitionReason`: Reason for state transition
 
+### Multi-CSV File Support
+
+If your zip archive contains **multiple CSV files** (e.g., from different Black Duck SCA instances):
+
+- **Aggregated View**: The report shows combined statistics across all CSV files by default
+- **File Selector**: In full reports, use the dropdown to view data from specific Black Duck instances
+- **Instance Comparison**: Compare metrics across different Black Duck servers or environments
+
+**Example use case:**
+```
+heatmap-data.zip
+├── production-instance.csv     # Production Black Duck data
+├── staging-instance.csv        # Staging Black Duck data
+└── development-instance.csv    # Development Black Duck data
+```
+
+The report will:
+- Display **aggregated totals** from all three instances in summary statistics
+- Provide a **file dropdown** to filter charts by specific instance
+- Enable **cross-instance analysis** and comparison
+
 ## Report Features
 
 The generated HTML dashboard includes:
@@ -330,32 +409,41 @@ Each run generates **one report** based on your selection:
 
 | Feature | Full Report | Simple Report (`--simple`) |
 |---------|-------------|---------------------------|
-| **File filter** | ✅ Interactive dropdown | ❌ Not available |
+| **File filter** | ✅ Dropdown (multi-instance support) | ❌ Not available |
 | **Year filter** | ✅ Interactive dropdown | ❌ Not available |
 | **Project search** | ✅ Type-ahead search | ❌ Not available |
 | **Dynamic chart updates** | ✅ Real-time filtering | ❌ Static data |
 | **Charts included** | ✅ All charts | ✅ All charts |
-| **Summary statistics** | ✅ Included | ✅ Included |
+| **Summary statistics** | ✅ Aggregated + per-instance | ✅ Aggregated only |
 | **File size** | Larger | Smaller |
 | **Page load speed** | Slower | Faster |
 | **Best for** | Analysis & investigation | Sharing & reporting |
 
 ### Summary Section
-- **Total Files Processed**: Number of CSV files analyzed
-- **Total Records**: Number of scan records
-- **Unique Projects**: Count of distinct projects
-- **Total Scans**: Total number of scans
-- **Successful Scans**: Number of completed scans
-- **Failed Scans**: Number of failed scans
-- **Success Rate**: Percentage of successful scans
+
+Displays **aggregated statistics** across all CSV files in the zip archive:
+
+- **Total Files Processed**: Number of CSV files analyzed (e.g., different Black Duck instances)
+- **Total Records**: Aggregated scan records from all files
+- **Unique Projects**: Combined count of distinct projects across all instances
+- **Total Scans**: Aggregated total number of scans
+- **Successful Scans**: Combined number of completed scans
+- **Failed Scans**: Combined number of failed scans
+- **Success Rate**: Overall percentage of successful scans
+
+**Note:** When multiple CSV files are present, summary statistics represent the **combined view** of all Black Duck instances. Use the file filter to view instance-specific metrics.
 
 ### Interactive Filters
 
 **Full Report** includes:
-- **File Selector**: Filter by specific CSV file
+- **File Selector**: Dropdown to filter by specific CSV file (Black Duck instance)
+  - Shows "All Files" by default (aggregated view)
+  - Lists each CSV file individually when multiple files are present
+  - Dynamically updates all charts and statistics based on selection
+  - Useful for comparing different Black Duck SCA instances or environments
 - **Year Selector**: Filter all data and charts by year
 - **Project Search**: Type-ahead project search with dynamic filtering
-- **Clear Filters**: Reset all filters to show all data
+- **Clear Filters**: Reset all filters to show aggregated data across all files
 
 **Simple Report** (generated with `--simple` flag):
 - No interactive filters
@@ -423,16 +511,20 @@ blackduck_heatmap_metrics/
 
 ## How It Works
 
-1. **Data Extraction**: Reads CSV files from zip archive using pandas
+1. **Data Extraction**: Reads all CSV files from zip archive using pandas
+   - Supports single or multiple CSV files (e.g., different Black Duck instances)
+   - Each CSV file is processed and tracked separately
 2. **Project Filtering** (optional): Connects to Black Duck to filter projects by project group
 3. **Time-based Analysis**: Parses timestamps and groups data by year and project
 4. **Aggregation**: Calculates statistics per file, year, project, and year+project combinations
+   - Generates both aggregated (all files) and individual file statistics
+   - Enables cross-instance comparison when multiple CSV files are present
 5. **Chart Generation**: Prepares optimized data structures for Plotly visualizations
    - Applies min-scans threshold to filter low-activity projects
    - Optionally skips year+project combinations for performance
    - Reduces data sampling for large datasets (time series: 200 points, scan type evolution: 100 points)
 6. **Template Rendering**: Jinja2 combines data with selected template (full or simple)
-7. **Output**: Generates a timestamped HTML file with embedded charts
+7. **Output**: Generates a timestamped HTML file with embedded charts and interactive file selector (when multiple CSVs)
 
 ## Customization
 
