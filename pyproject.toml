@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blackduck-heatmap-metrics"
-version = "0.1.10"
+version = "0.1.11"
 description = "Black Duck scan heatmap metrics analyzer with interactive visualizations"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -30,6 +30,8 @@ dependencies = [
     "jinja2>=3.1.0",
     "plotly>=5.18.0",
     "tqdm>=4.65.0",
+    "blackduck>=1.0.0",
+    "requests>=2.31.0",
 ]
 
 [project.urls]

@@ -73,6 +73,7 @@
 .EXAMPLE
   # Create a GitHub release
   ./release.ps1 -NewVersion 1.0.0 -Repository pypi -CreateGitHubRelease -GitHubToken "ghp_..."
+  ./release.ps1 -Repository pypi -CreateGitHubRelease -GitHubToken
 #>
 
 [CmdletBinding()]
