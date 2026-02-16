@@ -67,8 +67,8 @@ Before using this tool, you need to export the heatmap data from your Black Duck
 ## Features
 
 - 📦 **Zip Archive Support**: Reads CSV files directly from zip archives
-- � **Multi-CSV Support**: Handles multiple CSV files (different Black Duck instances) with aggregated view
-- �📊 **Interactive Charts**: Plotly-powered visualizations with hover details
+- 🗂️ **Multi-CSV Support**: Handles multiple CSV files (different Black Duck instances) with aggregated view
+- 📊 **Interactive Charts**: Plotly-powered visualizations with hover details
 - 🎯 **Black Duck Specific**: Tailored for Black Duck scan heatmap data
 - 📅 **Multi-level Filtering**: Filter by file, year, and project
 - 🏢 **Project Group Filtering**: Filter by Black Duck project groups (includes nested sub-groups)
