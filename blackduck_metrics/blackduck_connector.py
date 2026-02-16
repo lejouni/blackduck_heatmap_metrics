@@ -158,32 +158,3 @@ class BlackDuckConnector:
         """
         self.hub_instance = None
         print("Disconnected from Black Duck")
-
-
-def main():
-    """
-    Example usage of the BlackDuckConnector.
-    """
-    # Example 1: Connect using API token (recommended)
-    connector = BlackDuckConnector(
-        base_url="https://sca.field-test.blackduck.com",
-        api_token="MGMwYzFiYmItMWJjZC00M2VlLThhNTQtMjBhMmY4MzcxZTVmOjQyZmQ0YzM2LTc3MzMtNDZmZi1iMDExLTIxNzUwYjk3YWY3YQ=="
-    )
-    
-    try:
-        # Get list of projects
-        projects = connector.get_project_group_projects("Business Unit B")
-        print(f"Found {projects.get('totalCount', 0)} projects in group 'Business Unit B'")
-        projects = connector.get_project_group_projects("jounis-group")
-        print(f"Found {projects.get('totalCount', 0)} projects in group 'jounis-group'")
-        projects = connector.get_project_group_projects("Demo")
-        print(f"Found {projects.get('totalCount', 0)} projects in group 'Demo'")
-        print(json.dumps(projects, indent=2))
-        
-    except Exception as e:
-        print(f"Error: {e}")
-    finally:
-        connector.disconnect()
-    
-if __name__ == "__main__":
-    main()
