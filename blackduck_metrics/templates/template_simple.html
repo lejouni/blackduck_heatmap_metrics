@@ -297,6 +297,9 @@
             <h1>📊 Heatmap Metrics Analysis Report</h1>
             <div class="subtitle">
                 Generated on {{ generated_date }}
+                {% if project_group_name %}
+                <br>Project Group: <strong>{{ project_group_name }}</strong>
+                {% endif %}
                 {% if analysis.available_files and analysis.available_files|length == 1 %}
                 <br>Analyzing: <strong>{{ analysis.available_files[0] }}</strong>
                 {% elif analysis.available_files and analysis.available_files|length > 1 %}

@@ -1281,10 +1281,9 @@ def convert_to_json_serializable(obj):
         return obj
 
 
-def generate_html_report(analysis, chart_data, output_path, min_scans=10, analysis_simple=None, chart_data_simple=None):
+def generate_html_report(analysis, chart_data, output_path, min_scans=10, analysis_simple=None, chart_data_simple=None, project_group_name=None, simple_only=False):
     """
-    Generate HTML reports using Jinja2 templates.
-    Creates both a full report (with filters) and a simplified report (without filters).
+    Generate HTML report(s) using Jinja2 templates.
     
     Args:
         analysis: Analysis results for the full report
@@ -1293,6 +1292,8 @@ def generate_html_report(analysis, chart_data, output_path, min_scans=10, analys
         min_scans: Minimum number of scans threshold for including projects in charts
         analysis_simple: Optional separate analysis for simple report (used when filtering by year)
         chart_data_simple: Optional separate chart data for simple report (used when filtering by year)
+        project_group_name: Optional project group name to display in the report
+        simple_only: If True, generate only simplified report; if False, generate only full report
     """
     # Convert all numpy/pandas types to native Python types for JSON serialization
     analysis = convert_to_json_serializable(analysis)
@@ -1300,7 +1301,52 @@ def generate_html_report(analysis, chart_data, output_path, min_scans=10, analys
     if analysis_simple is not None:
         analysis_simple = convert_to_json_serializable(analysis_simple)
     
-    # Generate the full report with filters
+    # Monkey-patch json.dumps to handle Undefined objects
+    original_dumps = json.dumps
+    json.dumps = lambda obj, **kw: original_dumps(obj, cls=UndefinedSafeJSONEncoder, **kw)
+    
+    if simple_only:
+        # Generate ONLY the simplified report without filters
+        try:
+            template_path = files('blackduck_metrics').joinpath('templates/template_simple.html')
+            template_content = template_path.read_text(encoding='utf-8')
+        except:
+            # Fallback to file path (for development)
+            template_path = Path(__file__).parent / 'templates' / 'template_simple.html'
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+        
+        template = Template(template_content)
+        
+        # Use separate analysis and chart data for simple report if provided (e.g., when filtering by year)
+        simple_analysis = analysis_simple if analysis_simple is not None else analysis
+        simple_chart_data = chart_data_simple if chart_data_simple is not None else chart_data
+        
+        html_content = template.render(
+            analysis=simple_analysis,
+            chart_data=simple_chart_data,
+            generated_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            min_scans=min_scans,
+            project_group_name=project_group_name
+        )
+        
+        # Restore original json.dumps
+        json.dumps = original_dumps
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+        
+        # Get file size
+        file_size = Path(output_path).stat().st_size
+        if file_size > 1024 * 1024:
+            size_str = f"{file_size / (1024 * 1024):.2f} MB"
+        else:
+            size_str = f"{file_size / 1024:.2f} KB"
+        
+        print(f"\n[SUCCESS] Simple HTML report (no filters) generated: {output_path} ({size_str})")
+        return
+    
+    # Generate ONLY the full report with filters
     try:
         template_path = files('blackduck_metrics').joinpath('templates/template.html')
         template_content = template_path.read_text(encoding='utf-8')
@@ -1312,15 +1358,12 @@ def generate_html_report(analysis, chart_data, output_path, min_scans=10, analys
     
     template = Template(template_content)
     
-    # Monkey-patch json.dumps to handle Undefined objects
-    original_dumps = json.dumps
-    json.dumps = lambda obj, **kw: original_dumps(obj, cls=UndefinedSafeJSONEncoder, **kw)
-    
     html_content = template.render(
         analysis=analysis,
         chart_data=chart_data,
         generated_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        min_scans=min_scans
+        min_scans=min_scans,
+        project_group_name=project_group_name
     )
     
     # Restore original json.dumps
@@ -1337,53 +1380,3 @@ def generate_html_report(analysis, chart_data, output_path, min_scans=10, analys
         size_str = f"{file_size / 1024:.2f} KB"
     
     print(f"\n[SUCCESS] Full HTML report (with filters) generated: {output_path} ({size_str})")
-    
-    # Generate the simplified report without filters
-    try:
-        template_simple_path = files('blackduck_metrics').joinpath('templates/template_simple.html')
-        template_simple_content = template_simple_path.read_text(encoding='utf-8')
-    except:
-        # Fallback to file path (for development)
-        template_simple_path = Path(__file__).parent / 'templates' / 'template_simple.html'
-        try:
-            with open(template_simple_path, 'r', encoding='utf-8') as f:
-                template_simple_content = f.read()
-        except FileNotFoundError:
-            print(f"⚠️ Warning: Simplified template not found, skipping simple report generation")
-            return
-    
-    template_simple = Template(template_simple_content)
-    
-    # Use separate analysis and chart data for simple report if provided (e.g., when filtering by year)
-    simple_analysis = analysis_simple if analysis_simple is not None else analysis
-    simple_chart_data = chart_data_simple if chart_data_simple is not None else chart_data
-    
-    # Monkey-patch json.dumps again for simple template
-    json.dumps = lambda obj, **kw: original_dumps(obj, cls=UndefinedSafeJSONEncoder, **kw)
-    
-    html_simple_content = template_simple.render(
-        analysis=simple_analysis,
-        chart_data=simple_chart_data,
-        generated_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        min_scans=min_scans
-    )
-    
-    # Restore original json.dumps
-    json.dumps = original_dumps
-    
-    # Create simple report filename by inserting '_simple' before .html
-    output_path_obj = Path(output_path)
-    simple_output_path = output_path_obj.parent / f"{output_path_obj.stem}_simple{output_path_obj.suffix}"
-    
-    with open(simple_output_path, 'w', encoding='utf-8') as f:
-        f.write(html_simple_content)
-    
-    # Get file size
-    file_size_simple = Path(simple_output_path).stat().st_size
-    if file_size_simple > 1024 * 1024:
-        size_str_simple = f"{file_size_simple / (1024 * 1024):.2f} MB"
-    else:
-        size_str_simple = f"{file_size_simple / 1024:.2f} KB"
-    
-    print(f"[SUCCESS] Simple HTML report (no filters) generated: {simple_output_path} ({size_str_simple})")
-    print(f"Report size: {size_str}")

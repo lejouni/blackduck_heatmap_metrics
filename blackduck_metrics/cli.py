@@ -9,6 +9,90 @@ import time
 
 from . import __version__
 from .analyzer import read_csv_from_zip, analyze_data, generate_chart_data, generate_html_report
+from .blackduck_connector import BlackDuckConnector
+
+
+def get_project_names_from_group(project_group_name, bd_url=None, bd_token=None):
+    """
+    Get list of project names from a Black Duck project group.
+    
+    Args:
+        project_group_name: Name of the project group
+        bd_url: Black Duck server URL (optional, uses BD_URL env var if not provided)
+        bd_token: Black Duck API token (optional, uses BD_API_TOKEN env var if not provided)
+        
+    Returns:
+        set: Set of project names in the group
+        
+    Raises:
+        Exception: If connection fails or project group not found
+    """
+    print(f"Connecting to Black Duck to fetch projects from group '{project_group_name}'...")
+    
+    # Create connector (uses provided args or environment variables for auth)
+    connector = BlackDuckConnector(base_url=bd_url, api_token=bd_token)
+    
+    try:
+        # Get projects from the group
+        projects_data = connector.get_project_group_projects(project_group_name)
+        
+        if projects_data['totalCount'] == 0:
+            print(f"Warning: No projects found in group '{project_group_name}'")
+            return set()
+        
+        # Extract project names
+        project_names = set()
+        for project in projects_data.get('items', []):
+            if 'name' in project:
+                project_names.add(project['name'])
+        
+        print(f"Found {len(project_names)} projects in group '{project_group_name}'")
+        return project_names
+        
+    finally:
+        connector.disconnect()
+
+
+def filter_dataframes_by_projects(dataframes, project_names):
+    """
+    Filter dataframes to only include rows where projectName is in the given set.
+    
+    Args:
+        dataframes: Dictionary of DataFrames
+        project_names: Set of project names to include
+        
+    Returns:
+        dict: Filtered dictionary of DataFrames
+    """
+    if not project_names:
+        print("Warning: Empty project list, no data will be included")
+        return {}
+    
+    filtered_dfs = {}
+    total_rows_before = 0
+    total_rows_after = 0
+    
+    for filename, df in dataframes.items():
+        total_rows_before += len(df)
+        
+        # Check if projectName column exists
+        if 'projectName' not in df.columns:
+            print(f"Warning: 'projectName' column not found in {filename}, skipping filter for this file")
+            filtered_dfs[filename] = df
+            total_rows_after += len(df)
+            continue
+        
+        # Filter by project names
+        filtered_df = df[df['projectName'].isin(project_names)]
+        filtered_dfs[filename] = filtered_df
+        total_rows_after += len(filtered_df)
+    
+    if total_rows_before > 0:
+        print(f"Filtered data: {total_rows_before} rows -> {total_rows_after} rows ({total_rows_after/total_rows_before*100:.1f}% retained)")
+    else:
+        print("No data to filter")
+    
+    return filtered_dfs
 
 
 def main():
@@ -31,8 +115,8 @@ def main():
     
     parser.add_argument(
         '-o', '--output',
-        default=default_output,
-        help=f'Output HTML file path (default: {default_output})'
+        default=None,
+        help=f'Output HTML file path (default: report_<timestamp>.html or report_<timestamp>_<project-group>.html if --project-group is used)'
     )
     
     parser.add_argument(
@@ -49,9 +133,33 @@ def main():
     )
     
     parser.add_argument(
+        '--simple',
+        action='store_true',
+        help='Generate simplified report without interactive filters (smaller file size, faster loading)'
+    )
+    
+    parser.add_argument(
         '--start-year',
         type=int,
         help='Only analyze data from this year onwards (e.g., --start-year 2020 to exclude data before 2020)'
+    )
+
+    parser.add_argument(
+        '--project-group',
+        type=str,
+        help='Only analyze data from this project group (e.g., --project-group "Demo" to include only projects in the "Demo" project group)'
+    )
+    
+    parser.add_argument(
+        '--bd-url',
+        type=str,
+        help='Black Duck server URL (can also use BD_URL environment variable)'
+    )
+    
+    parser.add_argument(
+        '--bd-token',
+        type=str,
+        help='Black Duck API token (can also use BD_API_TOKEN environment variable)'
     )
     
     parser.add_argument(
@@ -61,6 +169,15 @@ def main():
     )
     
     args = parser.parse_args()
+    
+    # Generate output filename with project group if specified
+    if args.output is None:
+        if args.project_group:
+            # Sanitize project group name for filename
+            safe_group_name = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in args.project_group)
+            args.output = f'report_{timestamp}_{safe_group_name}.html'
+        else:
+            args.output = default_output
     
     zip_path = Path(args.zip_file)
     
@@ -77,6 +194,27 @@ def main():
     try:
         # Read CSV files from zip
         dataframes = read_csv_from_zip(zip_path)
+        
+        # Filter by project group if specified
+        if args.project_group:
+            print(f"\nFiltering projects by group: {args.project_group}")
+            try:
+                project_names = get_project_names_from_group(
+                    args.project_group,
+                    bd_url=args.bd_url,
+                    bd_token=args.bd_token
+                )
+                dataframes = filter_dataframes_by_projects(dataframes, project_names)
+                
+                if not dataframes or all(len(df) == 0 for df in dataframes.values()):
+                    print(f"Error: No data remaining after filtering by project group '{args.project_group}'")
+                    return 1
+                    
+            except Exception as e:
+                print(f"Error filtering by project group: {e}")
+                print("Make sure Black Duck credentials are set via --bd-url and --bd-token arguments")
+                print("or environment variables: BD_URL, BD_API_TOKEN (or BD_USERNAME and BD_PASSWORD)")
+                return 1
         
         # Analyze data
         print("\nAnalyzing data...")
@@ -106,7 +244,8 @@ def main():
         # Generate HTML report
         print("Creating HTML report...")
         generate_html_report(analysis, chart_data, args.output, min_scans=args.min_scans, 
-                           analysis_simple=analysis_simple, chart_data_simple=chart_data_simple)
+                           analysis_simple=analysis_simple, chart_data_simple=chart_data_simple,
+                           project_group_name=args.project_group, simple_only=args.simple)
         
         # Calculate execution time
         elapsed_time = time.time() - start_time

@@ -2,6 +2,45 @@
 
 A Python-based tool for analyzing Black Duck scan metrics from CSV files in zip archives. Generates interactive HTML dashboards with time series analysis, scan type evolution tracking, and year-based filtering.
 
+## Quick Start
+
+```bash
+# 1. Install the package
+pip install -e .
+
+# 2. Run analysis on your heatmap data
+bdmetrics "path/to/heatmap-data.zip"
+
+# 3. Open the generated report in your browser
+# Output: report_YYYYMMDD_HHMMSS.html
+```
+
+For project group filtering:
+```bash
+bdmetrics "data.zip" --project-group "Demo" \
+  --bd-url "https://your-server.com" \
+  --bd-token "your-api-token"
+```
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+  - [Command-Line Examples](#command-line-examples)
+  - [Choosing the Right Report Type](#choosing-the-right-report-type)
+  - [Performance Optimization](#performance-optimization)
+  - [Command-Line Options Reference](#command-line-options-reference)
+  - [Using Project Group Filter](#using-project-group-filter)
+- [CSV Data Format](#csv-data-format)
+- [Report Features](#report-features)
+- [How It Works](#how-it-works)
+- [Output Files](#output-files)
+- [Customization](#customization)
+- [Browser Compatibility](#browser-compatibility)
+- [Troubleshooting](#troubleshooting)
+
 ## Prerequisites
 
 ### Exporting Heatmap Data from Black Duck
@@ -34,7 +73,7 @@ Before using this tool, you need to export the heatmap data from your Black Duck
 - ✅ **Success/Failure Metrics**: Monitor scan success rates
 - 📱 **Responsive Design**: Works on desktop and mobile devices
 - 🚀 **Performance Optimized**: Configurable min-scans threshold and skip-detailed mode for large datasets
-- 📑 **Dual Report Generation**: Creates both full (with filters) and simplified (year-only) reports
+- 📑 **Flexible Report Types**: Choose between full interactive report or simplified static report
 
 ## Installation
 
@@ -97,9 +136,20 @@ bdmetrics "path/to/data.zip" --min-scans 50
 # Filter data from a specific year onwards (excludes older data)
 bdmetrics "path/to/data.zip" --start-year 2020
 
+# Filter by Black Duck project group (requires Black Duck connection)
+# Only projects in the specified group will be included in the analysis
+bdmetrics "path/to/data.zip" --project-group "Demo"
+
+# Filter by project group with credentials passed as arguments
+bdmetrics "path/to/data.zip" --project-group "Demo" --bd-url "https://your-server.com" --bd-token "your-token"
+
 # Skip detailed year+project combinations for faster processing and smaller files
 # Recommended for large datasets (reduces file size by ~36%)
 bdmetrics "path/to/data.zip" --skip-detailed
+
+# Generate simplified report without interactive filters
+# Creates a smaller file that loads faster (no dynamic filtering)
+bdmetrics "path/to/data.zip" --simple
 
 # Combine options for optimal performance with large datasets
 bdmetrics "path/to/data.zip" --min-scans 100 --skip-detailed --start-year 2020 -o report.html
@@ -111,6 +161,37 @@ bdmetrics --version
 bdmetrics --help
 ```
 
+### Choosing the Right Report Type
+
+**Use Full Report (default)** when you need:
+- ✅ Interactive filtering by file, year, and project
+- ✅ Ad-hoc exploration of specific projects
+- ✅ Detailed drill-down analysis
+- ✅ Dynamic chart updates based on selections
+- 📊 Ideal for: Analysis, investigation, troubleshooting
+
+**Use Simple Report (`--simple`)** when you need:
+- ✅ Fastest page load times
+- ✅ Smaller file size for sharing
+- ✅ Static overview of all data
+- ✅ No JavaScript complexity
+- 📊 Ideal for: Reports, presentations, email attachments, archiving
+
+**Example decision matrix:**
+```bash
+# Detailed analysis of specific teams → Full report
+bdmetrics "data.zip" --project-group "Team A"
+
+# Quick overview to share with management → Simple report
+bdmetrics "data.zip" --simple
+
+# Large dataset for detailed investigation → Full report with optimizations
+bdmetrics "data.zip" --min-scans 100 --skip-detailed
+
+# Large dataset for quick overview → Simple report with optimizations
+bdmetrics "data.zip" --simple --min-scans 100 --skip-detailed --start-year 2024
+```
+
 ### Performance Optimization
 
 For large datasets with thousands of projects:
@@ -118,14 +199,104 @@ For large datasets with thousands of projects:
 - Use `--min-scans` to filter out low-activity projects from trend charts (default: 10)
 - Use `--skip-detailed` to skip year+project combination charts (saves ~36% file size)
 - Use `--start-year` to exclude historical data before a specific year (e.g., `--start-year 2020`)
+- Use `--project-group` to analyze only projects within a specific Black Duck project group
+- Use `--simple` to generate a simplified report without interactive filters (smaller file size, faster loading)
 - Example: Dataset with 37,706 projects → 7,261 projects (--min-scans 100) → 282 MB vs 456 MB baseline
+
+### Command-Line Options Reference
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `zip_file` | Required | - | Path to zip file containing CSV heatmap data |
+| `-o, --output` | Optional | `report_<timestamp>.html` | Custom output filename |
+| `--min-scans` | Integer | `10` | Minimum scans for project to appear in trend charts |
+| `--skip-detailed` | Flag | `False` | Skip year+project charts (reduces file size ~36%) |
+| `--simple` | Flag | `False` | Generate simplified report without interactive filters |
+| `--start-year` | Integer | None | Filter data from this year onwards (e.g., `2020`) |
+| `--project-group` | String | None | Filter by Black Duck project group name |
+| `--bd-url` | String | `$BD_URL` | Black Duck server URL |
+| `--bd-token` | String | `$BD_API_TOKEN` | Black Duck API token |
+| `-v, --version` | Flag | - | Show version and exit |
+| `-h, --help` | Flag | - | Show help message and exit |
+
+**Note:** `--bd-url` and `--bd-token` are only required when using `--project-group`.
+
+### Using Project Group Filter
+
+The `--project-group` option allows you to filter analysis to only include projects that are members of a specific Black Duck project group. This requires connecting to your Black Duck server.
+
+**Getting a Black Duck API Token:**
+
+1. Log in to your Black Duck server
+2. Click on your username (top right) → **My Access Tokens**
+3. Click **Create New Token**
+4. Enter a name (e.g., "Heatmap Metrics Tool")
+5. Set appropriate scope/permissions (read access to projects)
+6. Click **Create**
+7. Copy the token immediately (it won't be shown again)
+
+**Setup Black Duck Connection:**
+
+You can provide credentials in two ways:
+
+**Option 1: Environment Variables (Recommended for automation)**
+
+```bash
+# On Windows (PowerShell)
+$env:BD_URL = "https://your-blackduck-server.com"
+$env:BD_API_TOKEN = "your-api-token-here"
+
+# Or use username/password (API token is recommended)
+$env:BD_URL = "https://your-blackduck-server.com"
+$env:BD_USERNAME = "your-username"
+$env:BD_PASSWORD = "your-password"
+
+# On Linux/Mac
+export BD_URL="https://your-blackduck-server.com"
+export BD_API_TOKEN="your-api-token-here"
+```
+
+**Option 2: Command-Line Arguments (Recommended for one-time use)**
+
+```bash
+# Pass credentials directly via command-line
+bdmetrics "path/to/data.zip" --project-group "Demo" \
+  --bd-url "https://your-blackduck-server.com" \
+  --bd-token "your-api-token-here"
+```
+
+**Example Usage:**
+
+```bash
+# Filter to only analyze projects in the "Business Unit A" group (using env vars)
+bdmetrics "path/to/data.zip" --project-group "Business Unit A"
+
+# Same, but with credentials as arguments
+bdmetrics "path/to/data.zip" --project-group "Business Unit A" \
+  --bd-url "https://your-server.com" --bd-token "your-token"
+
+# Combine with other filters
+bdmetrics "path/to/data.zip" --project-group "Demo" --start-year 2024 --min-scans 50
+
+# Complete example: Project group + simplified report + optimizations
+bdmetrics "heatmap-data.zip" \
+  --project-group "Business Unit A" \
+  --simple \
+  --min-scans 100 \
+  --skip-detailed \
+  --start-year 2024 \
+  --bd-url "https://blackduck.example.com" \
+  --bd-token "your-token"
+# Creates: report_YYYYMMDD_HHMMSS_Business_Unit_A.html (optimized simple report)
+```
 
 Running the `bdmetrics` command will:
 1. Extract and read all CSV files from the zip archive
 2. Analyze Black Duck scan metrics
-3. Generate two interactive HTML reports:
-   - Full report with all filters: `report_YYYYMMDD_HHMMSS.html`
-   - Simple report with year filter only: `report_YYYYMMDD_HHMMSS_simple.html`
+3. Generate an interactive HTML report:
+   - **By default**: Full report with all interactive filters (file, year, project): `report_YYYYMMDD_HHMMSS.html`
+   - **With `--simple`**: Simplified report without filters (smaller, faster): `report_YYYYMMDD_HHMMSS.html`
+   - **With `--project-group`**: Report includes project group name: `report_YYYYMMDD_HHMMSS_<group-name>.html`
 
 ## CSV Data Format
 
@@ -146,11 +317,28 @@ The tool expects CSV files with the following columns:
 
 The generated HTML dashboard includes:
 
-### Dual Report Generation
+### Report Types
 
-Each run generates **two reports**:
-1. **Full Report** (`report_YYYYMMDD_HHMMSS.html`): Complete filtering capabilities
-2. **Simple Report** (`report_YYYYMMDD_HHMMSS_simple.html`): Year-only filtering for quick overview
+Each run generates **one report** based on your selection:
+- **Full Report** (default): Interactive report with complete filtering capabilities (file, year, project)
+  - Filename: `report_YYYYMMDD_HHMMSS.html` or `report_YYYYMMDD_HHMMSS_<project-group>.html`
+- **Simple Report** (with `--simple` flag): Lightweight report without interactive filters
+  - Filename: Same as full report
+  - Faster loading, smaller file size, ideal for sharing
+
+### Report Type Comparison
+
+| Feature | Full Report | Simple Report (`--simple`) |
+|---------|-------------|---------------------------|
+| **File filter** | ✅ Interactive dropdown | ❌ Not available |
+| **Year filter** | ✅ Interactive dropdown | ❌ Not available |
+| **Project search** | ✅ Type-ahead search | ❌ Not available |
+| **Dynamic chart updates** | ✅ Real-time filtering | ❌ Static data |
+| **Charts included** | ✅ All charts | ✅ All charts |
+| **Summary statistics** | ✅ Included | ✅ Included |
+| **File size** | Larger | Smaller |
+| **Page load speed** | Slower | Faster |
+| **Best for** | Analysis & investigation | Sharing & reporting |
 
 ### Summary Section
 - **Total Files Processed**: Number of CSV files analyzed
@@ -161,14 +349,18 @@ Each run generates **two reports**:
 - **Failed Scans**: Number of failed scans
 - **Success Rate**: Percentage of successful scans
 
-### Interactive Filters (Full Report)
+### Interactive Filters
+
+**Full Report** includes:
 - **File Selector**: Filter by specific CSV file
 - **Year Selector**: Filter all data and charts by year
 - **Project Search**: Type-ahead project search with dynamic filtering
 - **Clear Filters**: Reset all filters to show all data
 
-### Interactive Filters (Simple Report)
-- **Year Selector**: Filter all data and charts by year only
+**Simple Report** (generated with `--simple` flag):
+- No interactive filters
+- Static view of all data
+- Smaller file size and faster page load
 
 ### Charts and Visualizations
 
@@ -215,39 +407,39 @@ The tool provides context-aware messages when data is unavailable:
 ```
 blackduck_heatmap_metrics/
 ├── blackduck_metrics/
-│   ├── __init__.py           # Package initialization
-│   ├── analyzer.py           # Core data analysis and report generation
-│   ├── cli.py                # Command-line interface
+│   ├── __init__.py              # Package initialization
+│   ├── analyzer.py              # Core data analysis and report generation
+│   ├── blackduck_connector.py   # Black Duck SCA connection handler
+│   ├── cli.py                   # Command-line interface
 │   └── templates/
-│       ├── template.html        # Full report template (all filters)
-│       └── template_simple.html # Simple report template (year filter only)
-├── template.html             # Root template for development
-├── template_simple.html      # Root simple template for development
-├── setup.py                  # Package installation script
-├── pyproject.toml            # Project metadata
-├── requirements.txt          # Python dependencies
-├── MANIFEST.in               # Package manifest
-└── README.md                 # This file
+│       ├── template.html        # Full report template (interactive filters)
+│       └── template_simple.html # Simple report template (no filters)
+├── setup.py                     # Package installation script
+├── pyproject.toml               # Project metadata
+├── requirements.txt             # Python dependencies
+├── MANIFEST.in                  # Package manifest
+└── README.md                    # This file
 ```
 
 ## How It Works
 
 1. **Data Extraction**: Reads CSV files from zip archive using pandas
-2. **Time-based Analysis**: Parses timestamps and groups data by year and project
-3. **Aggregation**: Calculates statistics per file, year, project, and year+project combinations
-4. **Chart Generation**: Prepares optimized data structures for Plotly visualizations
+2. **Project Filtering** (optional): Connects to Black Duck to filter projects by project group
+3. **Time-based Analysis**: Parses timestamps and groups data by year and project
+4. **Aggregation**: Calculates statistics per file, year, project, and year+project combinations
+5. **Chart Generation**: Prepares optimized data structures for Plotly visualizations
    - Applies min-scans threshold to filter low-activity projects
    - Optionally skips year+project combinations for performance
    - Reduces data sampling for large datasets (time series: 200 points, scan type evolution: 100 points)
-5. **Template Rendering**: Jinja2 combines data with both full and simple HTML templates
-6. **Output**: Generates two timestamped HTML files with embedded charts
+6. **Template Rendering**: Jinja2 combines data with selected template (full or simple)
+7. **Output**: Generates a timestamped HTML file with embedded charts
 
 ## Customization
 
 ### Template Styling
 Edit templates in `blackduck_metrics/templates/`:
-- `template.html` - Full report with all filters
-- `template_simple.html` - Simple report with year filter only
+- `template.html` - Full report with interactive filters
+- `template_simple.html` - Simple report without filters
 - Customize: Color scheme (blue gradient), chart types, layouts, summary cards, fonts
 
 ### Data Analysis
@@ -261,22 +453,42 @@ Modify `blackduck_metrics/analyzer.py` to:
 
 ## Output Files
 
-Each run generates **two reports** with timestamp-based filenames:
+Each run generates **one report** with a timestamp-based filename:
 
-### Full Report (with all filters)
-- Format: `report_YYYYMMDD_HHMMSS.html`
-- Example: `report_20260119_171725.html`
-- Features: File, year, and project filtering
+### Default Filename Format
+- Basic: `report_YYYYMMDD_HHMMSS.html`
+- With project group: `report_YYYYMMDD_HHMMSS_<sanitized-group-name>.html`
+- Custom (with `-o`): Your specified filename
 
-### Simple Report (year-only filtering)
-- Format: `report_YYYYMMDD_HHMMSS_simple.html`
-- Example: `report_20260119_171725_simple.html`
-- Features: Year filtering only, faster to load
+### Examples
+```bash
+# Default full report
+bdmetrics "data.zip"
+# Output: report_20260216_143015.html
 
-Both reports are:
+# Simple report
+bdmetrics "data.zip" --simple
+# Output: report_20260216_143015.html
+
+# With project group
+bdmetrics "data.zip" --project-group "Business Unit A"
+# Output: report_20260216_143015_Business_Unit_A.html
+
+# With project group and simple
+bdmetrics "data.zip" --project-group "Demo" --simple
+# Output: report_20260216_143015_Demo.html
+
+# Custom filename
+bdmetrics "data.zip" -o my_report.html
+# Output: my_report.html
+```
+
+### Report Characteristics
+All generated reports are:
 - Standalone HTML files (no external dependencies except Plotly CDN)
 - Self-contained with embedded data and charts
 - Shareable - can be opened directly in any modern browser
+- Single file per execution (either full or simple, based on flags)
 
 ## Browser Compatibility
 
@@ -298,7 +510,8 @@ Requires JavaScript enabled for interactive features.
 **Charts show "No trend data for this project (project has less than X scans)"**
 - This is normal for projects with few scans
 - Adjust `--min-scans` threshold if needed (default: 10)
-- Click "Clear Filters" to see all data
+- In full reports, click "Clear Filters" to see all data
+- Simple reports show all data without filtering
 
 **Charts not updating after filter selection**
 - Ensure JavaScript is enabled
@@ -311,13 +524,17 @@ Requires JavaScript enabled for interactive features.
 - This is normal for optimized reports
 
 **Report file too large**
+- Use `--simple` to generate a report without interactive filters (significantly smaller)
 - Use `--min-scans 50` or higher to reduce projects in charts
 - Use `--skip-detailed` to skip year+project combinations (~36% size reduction)
+- Use `--start-year` to exclude historical data
 - Example: 456 MB → 282 MB with --min-scans 100 --skip-detailed
 
-**Year filter not working**
+**Filters not available or working**
+- If using `--simple` flag, filters are not included by design (use default mode for filters)
+- In full reports, ensure JavaScript is enabled
 - Ensure `hour` column contains valid timestamps
-- Check that data spans multiple years
+- Check that data spans multiple years for year filtering
 
 **Charts show "No data available"**
 - Verify CSV files contain the required columns

@@ -140,3 +140,4 @@ reports/
 # Test data
 test_data/
 *.csv
+.restconfig.json
