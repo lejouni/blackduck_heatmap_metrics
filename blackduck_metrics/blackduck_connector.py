@@ -6,7 +6,6 @@ and interact with its REST API.
 """
 
 import os
-import json
 import requests
 from typing import Optional, Dict, Any
 from blackduck.HubRestApi import HubInstance
