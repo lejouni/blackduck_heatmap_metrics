@@ -129,8 +129,8 @@ generate_html_report(analysis, chart_data, "output_report.html")
 # Basic usage - generates report with default settings
 bdmetrics "C:\Users\Downloads\heatmap-data.zip"
 
-# Specify output file
-bdmetrics "path/to/data.zip" -o custom_report.html
+# Specify output folder
+bdmetrics "path/to/data.zip" -o reports
 
 # Set minimum scans threshold (default: 10)
 # Only projects with 50+ scans will appear in trend charts
@@ -155,7 +155,7 @@ bdmetrics "path/to/data.zip" --skip-detailed
 bdmetrics "path/to/data.zip" --simple
 
 # Combine options for optimal performance with large datasets
-bdmetrics "path/to/data.zip" --min-scans 100 --skip-detailed --start-year 2020 -o report.html
+bdmetrics "path/to/data.zip" --min-scans 100 --skip-detailed --start-year 2020 -o reports
 
 # Show version
 bdmetrics --version
@@ -246,7 +246,7 @@ For large datasets with thousands of projects:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `zip_file` | Required | - | Path to zip file containing CSV heatmap data |
-| `-o, --output` | Optional | `report_<timestamp>.html` | Custom output filename |
+| `-o, --output` | Optional | `.` (current dir) | Output folder path (auto-generates filename) |
 | `--min-scans` | Integer | `10` | Minimum scans for project to appear in trend charts |
 | `--skip-detailed` | Flag | `False` | Skip year+project charts (reduces file size ~36%) |
 | `--simple` | Flag | `False` | Generate simplified report without interactive filters |
@@ -550,7 +550,7 @@ Each run generates **one report** with a timestamp-based filename:
 ### Default Filename Format
 - Basic: `report_YYYYMMDD_HHMMSS.html`
 - With project group: `report_YYYYMMDD_HHMMSS_<sanitized-group-name>.html`
-- Custom (with `-o`): Your specified filename
+- With `-o folder`: Output to specified folder with timestamped filename
 
 ### Examples
 ```bash
@@ -570,9 +570,9 @@ bdmetrics "data.zip" --project-group "Business Unit A"
 bdmetrics "data.zip" --project-group "Demo" --simple
 # Output: report_20260216_143015_Demo.html
 
-# Custom filename
-bdmetrics "data.zip" -o my_report.html
-# Output: my_report.html
+# Custom output folder
+bdmetrics "data.zip" -o reports
+# Output: reports/report_<timestamp>.html
 ```
 
 ### Report Characteristics

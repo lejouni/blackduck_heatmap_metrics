@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- `-o, --output` parameter behavior changed
+  - Now accepts a folder path instead of a file path
+  - Automatically generates filename with timestamp and optional project group suffix
+  - Creates folder structure if it doesn't exist (including nested directories)
+  - Pattern: `-o reports_multi` creates `reports_multi/report_YYYYMMDD_HHMMSS.html`
+  - With project group: `reports_multi/report_YYYYMMDD_HHMMSS_<group-name>.html`
+
 ## [0.1.13] - 2026-02-16
 
 ### Added

@@ -116,7 +116,7 @@ def main():
     parser.add_argument(
         '-o', '--output',
         default=None,
-        help=f'Output HTML file path (default: report_<timestamp>.html or report_<timestamp>_<project-group>.html if --project-group is used)'
+        help='Output folder path (default: current directory). Reports will be named report_<timestamp>.html or report_<timestamp>_<project-group>.html'
     )
     
     parser.add_argument(
@@ -170,14 +170,22 @@ def main():
     
     args = parser.parse_args()
     
-    # Generate output filename with project group if specified
+    # Determine output folder and filename
     if args.output is None:
-        if args.project_group:
-            # Sanitize project group name for filename
-            safe_group_name = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in args.project_group)
-            args.output = f'report_{timestamp}_{safe_group_name}.html'
-        else:
-            args.output = default_output
+        output_folder = Path('.')
+    else:
+        output_folder = Path(args.output)
+    
+    # Generate filename with timestamp and optional project group
+    if args.project_group:
+        # Sanitize project group name for filename
+        safe_group_name = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in args.project_group)
+        output_filename = f'report_{timestamp}_{safe_group_name}.html'
+    else:
+        output_filename = default_output
+    
+    # Combine folder and filename
+    output_path = output_folder / output_filename
     
     zip_path = Path(args.zip_file)
     
@@ -237,13 +245,12 @@ def main():
         # For simple report, use the same chart data (generated from all years)
         chart_data_simple = chart_data if args.start_year else None
         
-        # Create output directory if it doesn't exist
-        output_path = Path(args.output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        # Create output folder if it doesn't exist
+        output_folder.mkdir(parents=True, exist_ok=True)
         
         # Generate HTML report
         print("Creating HTML report...")
-        generate_html_report(analysis, chart_data, args.output, min_scans=args.min_scans, 
+        generate_html_report(analysis, chart_data, str(output_path), min_scans=args.min_scans, 
                            analysis_simple=analysis_simple, chart_data_simple=chart_data_simple,
                            project_group_name=args.project_group, simple_only=args.simple)
         
