@@ -118,5 +118,6 @@ For future releases, use this template:
 
 ---
 
+[0.1.14]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.14
 [0.1.13]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.13
 [0.1.11]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.11
