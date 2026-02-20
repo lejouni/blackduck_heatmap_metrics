@@ -339,6 +339,154 @@ def calculate_projects_by_time_block(data):
     return result
 
 
+def calculate_projects_by_date(data):
+    """
+    Calculate top projects for each date.
+    
+    Args:
+        data: DataFrame with 'hour_parsed' and 'projectName' columns, 
+              optionally with 'is_success' and 'is_failure' columns
+        
+    Returns:
+        dict: Dictionary with projects_by_date (formatted as YYYY-MM-DD), 
+              projects_by_date_success, projects_by_date_failed, and available_dates (sorted list)
+    """
+    result = {
+        'projects_by_date': {},
+        'projects_by_date_success': {},
+        'projects_by_date_failed': {},
+        'available_dates': []
+    }
+    
+    if data is None or len(data) == 0:
+        return result
+    
+    if 'hour_parsed' not in data.columns or 'projectName' not in data.columns:
+        return result
+    
+    try:
+        # Extract date from hour_parsed
+        data_copy = data.copy()
+        data_copy['scan_date'] = data_copy['hour_parsed'].dt.date
+        
+        # Get all unique dates and sort them (most recent first)
+        all_dates = sorted(data_copy['scan_date'].unique(), reverse=True)
+        result['available_dates'] = [str(d) for d in all_dates]
+        
+        # Calculate for all scans - grouped by date
+        for scan_date in all_dates:
+            date_data = data_copy[data_copy['scan_date'] == scan_date]
+            if len(date_data) > 0:
+                top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                result['projects_by_date'][str(scan_date)] = top_projects
+        
+        # Calculate for successful scans only
+        if 'is_success' in data_copy.columns:
+            success_data = data_copy[data_copy['is_success'] == True]
+            for scan_date in all_dates:
+                date_data = success_data[success_data['scan_date'] == scan_date]
+                if len(date_data) > 0:
+                    top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                    result['projects_by_date_success'][str(scan_date)] = top_projects
+        
+        # Calculate for failed scans only
+        if 'is_failure' in data_copy.columns:
+            failed_data = data_copy[data_copy['is_failure'] == True]
+            for scan_date in all_dates:
+                date_data = failed_data[failed_data['scan_date'] == scan_date]
+                if len(date_data) > 0:
+                    top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                    result['projects_by_date_failed'][str(scan_date)] = top_projects
+    
+    except Exception as e:
+        print(f"Warning: Could not calculate projects by date: {e}")
+    
+    return result
+
+
+def calculate_projects_by_scan_type_and_date(data):
+    """
+    Calculate top projects for each combination of scan type and date.
+    
+    Args:
+        data: DataFrame with 'hour_parsed', 'scanType', and 'projectName' columns,
+              optionally with 'is_success' and 'is_failure' columns
+        
+    Returns:
+        dict: Dictionary with projects_by_scan_type_and_date, 
+              projects_by_scan_type_and_date_success, projects_by_scan_type_and_date_failed
+              Format: {scan_type: {date: {project: count}}}
+    """
+    result = {
+        'projects_by_scan_type_and_date': {},
+        'projects_by_scan_type_and_date_success': {},
+        'projects_by_scan_type_and_date_failed': {}
+    }
+    
+    if data is None or len(data) == 0:
+        return result
+    
+    if 'hour_parsed' not in data.columns or 'projectName' not in data.columns or 'scanType' not in data.columns:
+        return result
+    
+    try:
+        # Extract date from hour_parsed
+        data_copy = data.copy()
+        data_copy['scan_date'] = data_copy['hour_parsed'].dt.date
+        
+        # Get all unique scan types
+        scan_types = data_copy['scanType'].unique()
+        
+        # Calculate for all scans
+        for scan_type in scan_types:
+            scan_type_data = data_copy[data_copy['scanType'] == scan_type]
+            dates_for_type = scan_type_data['scan_date'].unique()
+            
+            result['projects_by_scan_type_and_date'][scan_type] = {}
+            for scan_date in dates_for_type:
+                date_data = scan_type_data[scan_type_data['scan_date'] == scan_date]
+                if len(date_data) > 0:
+                    top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                    result['projects_by_scan_type_and_date'][scan_type][str(scan_date)] = top_projects
+        
+        # Calculate for successful scans only
+        if 'is_success' in data_copy.columns:
+            success_data = data_copy[data_copy['is_success'] == True]
+            for scan_type in scan_types:
+                scan_type_data = success_data[success_data['scanType'] == scan_type]
+                if len(scan_type_data) == 0:
+                    continue
+                    
+                dates_for_type = scan_type_data['scan_date'].unique()
+                result['projects_by_scan_type_and_date_success'][scan_type] = {}
+                for scan_date in dates_for_type:
+                    date_data = scan_type_data[scan_type_data['scan_date'] == scan_date]
+                    if len(date_data) > 0:
+                        top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                        result['projects_by_scan_type_and_date_success'][scan_type][str(scan_date)] = top_projects
+        
+        # Calculate for failed scans only
+        if 'is_failure' in data_copy.columns:
+            failed_data = data_copy[data_copy['is_failure'] == True]
+            for scan_type in scan_types:
+                scan_type_data = failed_data[failed_data['scanType'] == scan_type]
+                if len(scan_type_data) == 0:
+                    continue
+                    
+                dates_for_type = scan_type_data['scan_date'].unique()
+                result['projects_by_scan_type_and_date_failed'][scan_type] = {}
+                for scan_date in dates_for_type:
+                    date_data = scan_type_data[scan_type_data['scan_date'] == scan_date]
+                    if len(date_data) > 0:
+                        top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                        result['projects_by_scan_type_and_date_failed'][scan_type][str(scan_date)] = top_projects
+    
+    except Exception as e:
+        print(f"Warning: Could not calculate projects by scan type and date: {e}")
+    
+    return result
+
+
 def calculate_scan_types_by_status(data):
     """
     Calculate scan type distributions for all scans, successful scans only, and failed scans only.
@@ -481,6 +629,13 @@ def analyze_data(dataframes, start_year=None):
             'projects_by_scan_type': {},
             'projects_by_scan_type_success': {},
             'projects_by_scan_type_failed': {},
+            'projects_by_date': {},
+            'projects_by_date_success': {},
+            'projects_by_date_failed': {},
+            'available_dates': [],
+            'projects_by_scan_type_and_date': {},
+            'projects_by_scan_type_and_date_success': {},
+            'projects_by_scan_type_and_date_failed': {},
             'projects_by_time_block': {},
             'projects_by_time_block_success': {},
             'projects_by_time_block_failed': {},
@@ -668,6 +823,16 @@ def analyze_data(dataframes, start_year=None):
         if 'hour_parsed' in all_data.columns and 'projectName' in all_data.columns:
             time_block_projects = calculate_projects_by_time_block(all_data)
             analysis['aggregated'].update(time_block_projects)
+        
+        # Top projects by date (all, success, failed)
+        if 'hour_parsed' in all_data.columns and 'projectName' in all_data.columns:
+            date_projects = calculate_projects_by_date(all_data)
+            analysis['aggregated'].update(date_projects)
+        
+        # Top projects by scan type AND date combined (all, success, failed)
+        if 'hour_parsed' in all_data.columns and 'projectName' in all_data.columns and 'scanType' in all_data.columns:
+            scan_type_date_projects = calculate_projects_by_scan_type_and_date(all_data)
+            analysis['aggregated'].update(scan_type_date_projects)
         
         # State distribution
         if 'state' in all_data.columns:

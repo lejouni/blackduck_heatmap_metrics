@@ -25,13 +25,14 @@
         
         // Forward declarations - these will be replaced when main script loads
         var _applyFilters, _applyProjectFilter, _clearAllFilters, _updateProjectListForFile;
-        var _filterProjectsByScanType, _filterProjectsByTimeBlock, _updateScanTypeEvolution;
+        var _filterProjectsByScanType, _filterProjectsByDate, _filterProjectsByTimeBlock, _updateScanTypeEvolution;
         
         function applyFilters() { if (_applyFilters) _applyFilters(); }
         function applyProjectFilter() { if (_applyProjectFilter) _applyProjectFilter(); }
         function clearAllFilters() { if (_clearAllFilters) _clearAllFilters(); }
         function updateProjectListForFile() { if (_updateProjectListForFile) _updateProjectListForFile(); }
         function filterProjectsByScanType() { if (_filterProjectsByScanType) _filterProjectsByScanType(); }
+        function filterProjectsByDate() { if (_filterProjectsByDate) _filterProjectsByDate(); }
         function filterProjectsByTimeBlock() { if (_filterProjectsByTimeBlock) _filterProjectsByTimeBlock(); }
         function updateScanTypeEvolution() { if (_updateScanTypeEvolution) _updateScanTypeEvolution(); }
     </script>
@@ -560,14 +561,26 @@
             {% endif %}
             
             <h3 style="margin-top: 30px;">Top Projects</h3>
-            <div style="margin-bottom: 15px;">
-                <label for="scanTypeFilter" style="font-weight: 600; margin-right: 10px;">Filter by Scan Type:</label>
-                <select id="scanTypeFilter" onchange="filterProjectsByScanType()" style="padding: 8px 15px; font-size: 0.95em; border-radius: 5px; border: 1px solid #e2e8f0; background: white; cursor: pointer;">
-                    <option value="all">All Scan Types</option>
-                    {% for scan_type in analysis.aggregated.scan_types.keys() %}
-                    <option value="{{ scan_type }}">{{ scan_type }}</option>
-                    {% endfor %}
-                </select>
+            <div style="margin-bottom: 15px; display: flex; gap: 30px; flex-wrap: wrap; align-items: center;">
+                <div>
+                    <label for="scanTypeFilter" style="font-weight: 600; margin-right: 10px;">Filter by Scan Type:</label>
+                    <select id="scanTypeFilter" onchange="filterProjectsByScanType()" style="padding: 8px 15px; font-size: 0.95em; border-radius: 5px; border: 1px solid #e2e8f0; background: white; cursor: pointer;">
+                        <option value="all">All Scan Types</option>
+                        {% for scan_type in analysis.aggregated.scan_types.keys() %}
+                        <option value="{{ scan_type }}">{{ scan_type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <label for="dateFilter" style="font-weight: 600;">Filter by Date:</label>
+                    <input type="date" id="dateFilter" onchange="filterProjectsByDate()" 
+                           style="padding: 8px 12px; font-size: 0.95em; border-radius: 5px; border: 1px solid #e2e8f0; cursor: pointer;"
+                           {% if analysis.aggregated.available_dates %}
+                           min="{{ analysis.aggregated.available_dates[-1] }}"
+                           max="{{ analysis.aggregated.available_dates[0] }}"
+                           {% endif %}>
+                    <button onclick="clearDateFilter()" style="padding: 8px 15px; font-size: 0.9em; border-radius: 5px; border: 1px solid #e2e8f0; background: #f7fafc; cursor: pointer; color: #4a5568;">Clear</button>
+                </div>
             </div>
             
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-top: 20px;">
@@ -663,6 +676,13 @@
             projects_by_time_block: {{ analysis.aggregated.projects_by_time_block | default({}) | tojson | safe }},
             projects_by_time_block_success: {{ analysis.aggregated.projects_by_time_block_success | default({}) | tojson | safe }},
             projects_by_time_block_failed: {{ analysis.aggregated.projects_by_time_block_failed | default({}) | tojson | safe }},
+            projects_by_date: {{ analysis.aggregated.projects_by_date | default({}) | tojson | safe }},
+            projects_by_date_success: {{ analysis.aggregated.projects_by_date_success | default({}) | tojson | safe }},
+            projects_by_date_failed: {{ analysis.aggregated.projects_by_date_failed | default({}) | tojson | safe }},
+            available_dates: {{ analysis.aggregated.available_dates | default([]) | tojson | safe }},
+            projects_by_scan_type_and_date: {{ analysis.aggregated.projects_by_scan_type_and_date | default({}) | tojson | safe }},
+            projects_by_scan_type_and_date_success: {{ analysis.aggregated.projects_by_scan_type_and_date_success | default({}) | tojson | safe }},
+            projects_by_scan_type_and_date_failed: {{ analysis.aggregated.projects_by_scan_type_and_date_failed | default({}) | tojson | safe }},
             busiest_hour: {{ analysis.summary.busiest_hour | default('null') }},
             busiest_hour_end: {{ analysis.summary.busiest_hour_end | default('null') }},
             busiest_count: {{ analysis.summary.busiest_count | default(0) }},
@@ -703,31 +723,80 @@
         } else {
         }
         
-        // Filter projects by scan type (must be defined early for inline onchange handlers)
-        _filterProjectsByScanType = function filterProjectsByScanType() {
+        // Combined filter logic for scan type and date
+        function applyCombinedProjectFilters() {
             const selectedScanType = document.getElementById('scanTypeFilter').value;
+            const selectedDate = document.getElementById('dateFilter').value;
             const selectedStatus = document.getElementById('statusFilter') ? document.getElementById('statusFilter').value : 'all';
             
-            if (selectedScanType === 'all') {
-                // No scan type filter - use top_projects based on status
+            const hasScanTypeFilter = selectedScanType !== 'all';
+            const hasDateFilter = selectedDate !== '' && selectedDate !== 'all';
+            
+            let projectsToDisplay = {};
+            
+            if (!hasScanTypeFilter && !hasDateFilter) {
+                // No filters - show all projects based on status
                 if (selectedStatus === 'success') {
-                    updateProjectChart(allData.top_projects_success || {});
+                    projectsToDisplay = allData.top_projects_success || {};
                 } else if (selectedStatus === 'failed') {
-                    updateProjectChart(allData.top_projects_failed || {});
+                    projectsToDisplay = allData.top_projects_failed || {};
                 } else {
-                    updateProjectChart(allData.top_projects);
+                    projectsToDisplay = allData.top_projects;
+                }
+            } else if (hasScanTypeFilter && !hasDateFilter) {
+                // Only scan type filter
+                if (selectedStatus === 'success') {
+                    projectsToDisplay = (allData.projects_by_scan_type_success && allData.projects_by_scan_type_success[selectedScanType]) || {};
+                } else if (selectedStatus === 'failed') {
+                    projectsToDisplay = (allData.projects_by_scan_type_failed && allData.projects_by_scan_type_failed[selectedScanType]) || {};
+                } else {
+                    projectsToDisplay = (allData.projects_by_scan_type && allData.projects_by_scan_type[selectedScanType]) || {};
+                }
+            } else if (!hasScanTypeFilter && hasDateFilter) {
+                // Only date filter
+                if (selectedStatus === 'success') {
+                    projectsToDisplay = (allData.projects_by_date_success && allData.projects_by_date_success[selectedDate]) || {};
+                } else if (selectedStatus === 'failed') {
+                    projectsToDisplay = (allData.projects_by_date_failed && allData.projects_by_date_failed[selectedDate]) || {};
+                } else {
+                    projectsToDisplay = (allData.projects_by_date && allData.projects_by_date[selectedDate]) || {};
                 }
             } else {
-                // Scan type filter applied - use projects_by_scan_type based on status
-                let projectsForType;
+                // Both filters active - use pre-computed combined data
                 if (selectedStatus === 'success') {
-                    projectsForType = (allData.projects_by_scan_type_success && allData.projects_by_scan_type_success[selectedScanType]) || {};
+                    projectsToDisplay = (allData.projects_by_scan_type_and_date_success && 
+                                       allData.projects_by_scan_type_and_date_success[selectedScanType] &&
+                                       allData.projects_by_scan_type_and_date_success[selectedScanType][selectedDate]) || {};
                 } else if (selectedStatus === 'failed') {
-                    projectsForType = (allData.projects_by_scan_type_failed && allData.projects_by_scan_type_failed[selectedScanType]) || {};
+                    projectsToDisplay = (allData.projects_by_scan_type_and_date_failed && 
+                                       allData.projects_by_scan_type_and_date_failed[selectedScanType] &&
+                                       allData.projects_by_scan_type_and_date_failed[selectedScanType][selectedDate]) || {};
                 } else {
-                    projectsForType = (allData.projects_by_scan_type && allData.projects_by_scan_type[selectedScanType]) || {};
+                    projectsToDisplay = (allData.projects_by_scan_type_and_date && 
+                                       allData.projects_by_scan_type_and_date[selectedScanType] &&
+                                       allData.projects_by_scan_type_and_date[selectedScanType][selectedDate]) || {};
                 }
-                updateProjectChart(projectsForType);
+            }
+            
+            updateProjectChart(projectsToDisplay);
+        }
+        
+        // Filter projects by scan type (must be defined early for inline onchange handlers)
+        _filterProjectsByScanType = function filterProjectsByScanType() {
+            applyCombinedProjectFilters();
+        }
+        
+        // Filter projects by date (must be defined early for inline onchange handlers)
+        _filterProjectsByDate = function filterProjectsByDate() {
+            applyCombinedProjectFilters();
+        }
+        
+        // Clear date filter
+        function clearDateFilter() {
+            const dateFilter = document.getElementById('dateFilter');
+            if (dateFilter) {
+                dateFilter.value = '';
+                filterProjectsByDate();
             }
         }
         
