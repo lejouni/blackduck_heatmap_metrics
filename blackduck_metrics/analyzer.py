@@ -855,6 +855,7 @@ def analyze_data(dataframes, start_year=None):
                 file_data['is_failure'] = file_data['state_upper'].isin([s.upper() for s in failure_states])
             
             file_stats = {
+                'total_files': 1,
                 'total_rows': len(file_data),
                 'unique_projects': file_data['projectName'].nunique() if 'projectName' in file_data.columns else 0,
                 'total_scans': len(file_data),

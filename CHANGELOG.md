@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.15] - 2026-03-03
+
+### Added
+- `--compress` flag to gzip-compress HTML output files as `.html.gz`
+  - Browsers open `.html.gz` files natively (Chrome, Firefox, Edge)
+  - Significantly reduces file size for large reports
+  - Original `.html` file is replaced by the compressed `.html.gz` file
+  - Example: `bdmetrics data.zip --compress` produces `report_YYYYMMDD_HHMMSS.html.gz`
+
+### Fixed
+- **Total Files** card not updating when selecting a single CSV file from the dropdown
+  - Per-file statistics now correctly include `total_files: 1`
+  - Previously showed blank/undefined instead of `1` when a specific file was selected
+
 ## [0.1.14] - 2026-02-20
 
 ### Changed
@@ -118,6 +132,7 @@ For future releases, use this template:
 
 ---
 
+[0.1.15]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.15
 [0.1.14]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.14
 [0.1.13]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.13
 [0.1.11]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.11

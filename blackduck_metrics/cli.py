@@ -3,6 +3,7 @@ Command-line interface for Black Duck Heatmap Metrics Analyzer.
 """
 
 import argparse
+import gzip
 from pathlib import Path
 from datetime import datetime
 import time
@@ -163,6 +164,12 @@ def main():
     )
     
     parser.add_argument(
+        '--compress',
+        action='store_true',
+        help='gzip-compress HTML output files (.html.gz); browsers open these natively'
+    )
+
+    parser.add_argument(
         '-v', '--version',
         action='version',
         version=f'%(prog)s {__version__}'
@@ -253,6 +260,17 @@ def main():
         generate_html_report(analysis, chart_data, str(output_path), min_scans=args.min_scans, 
                            analysis_simple=analysis_simple, chart_data_simple=chart_data_simple,
                            project_group_name=args.project_group, simple_only=args.simple)
+        
+        # Optionally compress the generated HTML file
+        if args.compress:
+            gz_path = Path(str(output_path) + '.gz')
+            with open(output_path, 'rb') as f_in:
+                with gzip.open(str(gz_path), 'wb') as f_out:
+                    f_out.write(f_in.read())
+            output_path.unlink()
+            gz_size = gz_path.stat().st_size
+            size_str = f"{gz_size / (1024 * 1024):.2f} MB" if gz_size > 1024 * 1024 else f"{gz_size / 1024:.2f} KB"
+            print(f"  Compressed: {gz_path} ({size_str})")
         
         # Calculate execution time
         elapsed_time = time.time() - start_time

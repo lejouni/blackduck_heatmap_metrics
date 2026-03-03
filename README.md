@@ -254,6 +254,7 @@ For large datasets with thousands of projects:
 | `--project-group` | String | None | Filter by Black Duck project group (includes all nested sub-groups) |
 | `--bd-url` | String | `$BD_URL` | Black Duck server URL |
 | `--bd-token` | String | `$BD_API_TOKEN` | Black Duck API token |
+| `--compress` | Flag | `False` | gzip-compress HTML output as `.html.gz`; browsers open these natively |
 | `-v, --version` | Flag | - | Show version and exit |
 | `-h, --help` | Flag | - | Show help message and exit |
 
@@ -346,6 +347,14 @@ bdmetrics "heatmap-data.zip" \
   --bd-url "https://blackduck.example.com" \
   --bd-token "your-token"
 # Creates: report_YYYYMMDD_HHMMSS_Business_Unit_A.html (optimized simple report)
+
+# Compress the output to reduce file size (browsers open .html.gz natively)
+bdmetrics "heatmap-data.zip" --compress
+# Creates: report_YYYYMMDD_HHMMSS.html.gz
+
+# Compress combined with other options
+bdmetrics "heatmap-data.zip" --project-group "Business Unit A" --simple --compress
+# Creates: report_YYYYMMDD_HHMMSS_Business_Unit_A.html.gz
 ```
 
 Running the `bdmetrics` command will:
