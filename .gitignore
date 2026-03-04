@@ -142,3 +142,4 @@ test_data/
 *.csv
 .restconfig.json
 reports_multi/
+*.gz

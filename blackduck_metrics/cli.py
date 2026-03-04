@@ -146,6 +146,12 @@ def main():
     )
 
     parser.add_argument(
+        '--end-year',
+        type=int,
+        help='Only analyze data up to and including this year (e.g., --end-year 2024 to exclude data after 2024)'
+    )
+
+    parser.add_argument(
         '--project-group',
         type=str,
         help='Only analyze data from this project group (e.g., --project-group "Demo" to include only projects in the "Demo" project group)'
@@ -163,6 +169,13 @@ def main():
         help='Black Duck API token (can also use BD_API_TOKEN environment variable)'
     )
     
+    parser.add_argument(
+        '--max-projects',
+        type=int,
+        default=1000,
+        help='Maximum number of projects included in trend charts (default: 1000). Use 0 for no limit (may cause performance issues in browser for large datasets)'
+    )
+
     parser.add_argument(
         '--compress',
         action='store_true',
@@ -233,24 +246,30 @@ def main():
         
         # Analyze data
         print("\nAnalyzing data...")
+        year_range_parts = []
         if args.start_year:
-            print(f"  Filtering data from year {args.start_year} onwards (for full report)")
-        analysis = analyze_data(dataframes, start_year=args.start_year)
+            year_range_parts.append(f"from {args.start_year}")
+        if args.end_year:
+            year_range_parts.append(f"up to {args.end_year}")
+        if year_range_parts:
+            print(f"  Filtering data {' '.join(year_range_parts)}")
+        analysis = analyze_data(dataframes, start_year=args.start_year, end_year=args.end_year)
         
-        # For simple report, generate analysis with all years if start_year was specified
+        # For simple report, generate analysis without year filters if any year filter was specified
+        # (only needed when --simple is used, since analysis_simple feeds the simple template)
         analysis_simple = None
-        if args.start_year:
+        if args.simple and (args.start_year or args.end_year):
             print(f"  Generating simple report data (all years)")
-            analysis_simple = analyze_data(dataframes, start_year=None)
+            analysis_simple = analyze_data(dataframes, start_year=None, end_year=None)
         
         # Generate chart data
         print(f"Generating charts (min scans per project: {args.min_scans})...")
         if args.skip_detailed:
             print("  Skip detailed mode: Year+project combinations will be skipped")
-        chart_data = generate_chart_data(dataframes, min_scans=args.min_scans, skip_detailed=args.skip_detailed)
+        chart_data = generate_chart_data(dataframes, min_scans=args.min_scans, skip_detailed=args.skip_detailed, max_projects=args.max_projects, start_year=args.start_year, end_year=args.end_year)
         
         # For simple report, use the same chart data (generated from all years)
-        chart_data_simple = chart_data if args.start_year else None
+        chart_data_simple = chart_data if (args.simple and (args.start_year or args.end_year)) else None
         
         # Create output folder if it doesn't exist
         output_folder.mkdir(parents=True, exist_ok=True)

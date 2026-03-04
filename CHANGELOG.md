@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.16] - 2026-03-04
+
+### Added
+- `--max-projects` CLI option to control the cap on projects included in trend charts
+  - Default: `1000` (preserves previous behaviour)
+  - Pass `0` to include all qualifying projects with no limit
+  - Example: `bdmetrics data.zip --max-projects 0`
+- `--end-year` CLI option to exclude data after a given year
+  - Combine with `--start-year` to analyse a specific year range
+  - Example: `bdmetrics data.zip --start-year 2022 --end-year 2024`
+
+### Fixed
+- **Scan count discrepancy between project charts** — "Top Projects by Scan Count" and all
+  interactive project ranking views (time block, date, scan type) now use the same metric:
+  the sum of the `scanCount` column per project. Previously the initial bar chart used
+  `scanCount.sum` while every post-interaction update used a row count (`.size()`), causing
+  different numbers to appear for the same project depending on which UI element was last
+  interacted with.
+- **Spurious "Generating simple report data (all years)" pass** when `--simple` was not
+  specified alongside `--start-year` / `--end-year`. The extra `analyze_data` call is now
+  gated on both `--simple` and a year filter being active.
+- **Year filter not applied during chart-project selection** in `generate_chart_data`.
+  Projects were previously selected from the full unfiltered dataset even when `--start-year`
+  or `--end-year` was provided; the upfront per-file year filter now runs before any project
+  enumeration so only years within the requested range are considered.
+
 ## [0.1.15] - 2026-03-03
 
 ### Added
@@ -132,6 +158,7 @@ For future releases, use this template:
 
 ---
 
+[0.1.16]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.16
 [0.1.15]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.15
 [0.1.14]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.14
 [0.1.13]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.13

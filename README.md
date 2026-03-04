@@ -139,6 +139,12 @@ bdmetrics "path/to/data.zip" --min-scans 50
 # Filter data from a specific year onwards (excludes older data)
 bdmetrics "path/to/data.zip" --start-year 2020
 
+# Filter data up to a specific year (excludes newer data)
+bdmetrics "path/to/data.zip" --end-year 2024
+
+# Filter to a specific year range
+bdmetrics "path/to/data.zip" --start-year 2022 --end-year 2024
+
 # Filter by Black Duck project group (requires Black Duck connection)
 # Includes all projects in the specified group and all nested sub-groups
 bdmetrics "path/to/data.zip" --project-group "Demo"
@@ -235,8 +241,10 @@ bdmetrics "data.zip" --simple --min-scans 100 --skip-detailed --start-year 2024
 For large datasets with thousands of projects:
 
 - Use `--min-scans` to filter out low-activity projects from trend charts (default: 10)
+- Use `--max-projects` to control the cap on projects included in trend charts (default: 1000, use `0` for no limit)
 - Use `--skip-detailed` to skip year+project combination charts (saves ~36% file size)
 - Use `--start-year` to exclude historical data before a specific year (e.g., `--start-year 2020`)
+- Use `--end-year` to exclude data after a specific year (e.g., `--end-year 2024`); combine with `--start-year` for a year range
 - Use `--project-group` to analyze only projects within a specific Black Duck project group
 - Use `--simple` to generate a simplified report without interactive filters (smaller file size, faster loading)
 - Example: Dataset with 37,706 projects → 7,261 projects (--min-scans 100) → 282 MB vs 456 MB baseline
@@ -248,9 +256,11 @@ For large datasets with thousands of projects:
 | `zip_file` | Required | - | Path to zip file containing CSV heatmap data |
 | `-o, --output` | Optional | `.` (current dir) | Output folder path (auto-generates filename) |
 | `--min-scans` | Integer | `10` | Minimum scans for project to appear in trend charts |
+| `--max-projects` | Integer | `1000` | Max projects in trend charts; use `0` for no limit (see performance note) |
 | `--skip-detailed` | Flag | `False` | Skip year+project charts (reduces file size ~36%) |
 | `--simple` | Flag | `False` | Generate simplified report without interactive filters |
 | `--start-year` | Integer | None | Filter data from this year onwards (e.g., `2020`) |
+| `--end-year` | Integer | None | Filter data up to and including this year (e.g., `2024`) |
 | `--project-group` | String | None | Filter by Black Duck project group (includes all nested sub-groups) |
 | `--bd-url` | String | `$BD_URL` | Black Duck server URL |
 | `--bd-token` | String | `$BD_API_TOKEN` | Black Duck API token |

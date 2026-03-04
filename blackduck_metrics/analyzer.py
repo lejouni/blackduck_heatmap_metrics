@@ -256,6 +256,15 @@ def copy_busy_quiet_metrics(target_dict, busy_quiet):
     target_dict['quietest_percentage_failed'] = busy_quiet['quietest_percentage_failed']
 
 
+def _top_projects_by_scan_count(df, n=15):
+    """Return top-n projects ranked by total scan count (sum of scanCount column).
+    Falls back to row count if scanCount column is absent.
+    """
+    if 'scanCount' in df.columns:
+        return df.groupby('projectName')['scanCount'].sum().nlargest(n).to_dict()
+    return df.groupby('projectName').size().nlargest(n).to_dict()
+
+
 def calculate_projects_by_time_block(data):
     """
     Calculate top projects for each 3-hour time block.
@@ -312,7 +321,7 @@ def calculate_projects_by_time_block(data):
         for time_block in time_block_labels:
             block_data = data_copy[data_copy['time_block'] == time_block]
             if len(block_data) > 0:
-                top_projects = block_data.groupby('projectName').size().nlargest(10).to_dict()
+                top_projects = _top_projects_by_scan_count(block_data, n=10)
                 result['projects_by_time_block'][time_block] = top_projects
         
         # Calculate for successful scans only
@@ -321,7 +330,7 @@ def calculate_projects_by_time_block(data):
             for time_block in time_block_labels:
                 block_data = success_data[success_data['time_block'] == time_block]
                 if len(block_data) > 0:
-                    top_projects = block_data.groupby('projectName').size().nlargest(10).to_dict()
+                    top_projects = _top_projects_by_scan_count(block_data, n=10)
                     result['projects_by_time_block_success'][time_block] = top_projects
         
         # Calculate for failed scans only
@@ -330,7 +339,7 @@ def calculate_projects_by_time_block(data):
             for time_block in time_block_labels:
                 block_data = failed_data[failed_data['time_block'] == time_block]
                 if len(block_data) > 0:
-                    top_projects = block_data.groupby('projectName').size().nlargest(10).to_dict()
+                    top_projects = _top_projects_by_scan_count(block_data, n=10)
                     result['projects_by_time_block_failed'][time_block] = top_projects
     
     except Exception as e:
@@ -377,7 +386,7 @@ def calculate_projects_by_date(data):
         for scan_date in all_dates:
             date_data = data_copy[data_copy['scan_date'] == scan_date]
             if len(date_data) > 0:
-                top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                top_projects = _top_projects_by_scan_count(date_data)
                 result['projects_by_date'][str(scan_date)] = top_projects
         
         # Calculate for successful scans only
@@ -386,7 +395,7 @@ def calculate_projects_by_date(data):
             for scan_date in all_dates:
                 date_data = success_data[success_data['scan_date'] == scan_date]
                 if len(date_data) > 0:
-                    top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                    top_projects = _top_projects_by_scan_count(date_data)
                     result['projects_by_date_success'][str(scan_date)] = top_projects
         
         # Calculate for failed scans only
@@ -395,7 +404,7 @@ def calculate_projects_by_date(data):
             for scan_date in all_dates:
                 date_data = failed_data[failed_data['scan_date'] == scan_date]
                 if len(date_data) > 0:
-                    top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                    top_projects = _top_projects_by_scan_count(date_data)
                     result['projects_by_date_failed'][str(scan_date)] = top_projects
     
     except Exception as e:
@@ -446,7 +455,7 @@ def calculate_projects_by_scan_type_and_date(data):
             for scan_date in dates_for_type:
                 date_data = scan_type_data[scan_type_data['scan_date'] == scan_date]
                 if len(date_data) > 0:
-                    top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                    top_projects = _top_projects_by_scan_count(date_data)
                     result['projects_by_scan_type_and_date'][scan_type][str(scan_date)] = top_projects
         
         # Calculate for successful scans only
@@ -462,7 +471,7 @@ def calculate_projects_by_scan_type_and_date(data):
                 for scan_date in dates_for_type:
                     date_data = scan_type_data[scan_type_data['scan_date'] == scan_date]
                     if len(date_data) > 0:
-                        top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                        top_projects = _top_projects_by_scan_count(date_data)
                         result['projects_by_scan_type_and_date_success'][scan_type][str(scan_date)] = top_projects
         
         # Calculate for failed scans only
@@ -478,7 +487,7 @@ def calculate_projects_by_scan_type_and_date(data):
                 for scan_date in dates_for_type:
                     date_data = scan_type_data[scan_type_data['scan_date'] == scan_date]
                     if len(date_data) > 0:
-                        top_projects = date_data.groupby('projectName').size().nlargest(15).to_dict()
+                        top_projects = _top_projects_by_scan_count(date_data)
                         result['projects_by_scan_type_and_date_failed'][scan_type][str(scan_date)] = top_projects
     
     except Exception as e:
@@ -552,31 +561,32 @@ def calculate_top_projects_by_status(data):
     if 'projectName' not in data.columns or 'scanCount' not in data.columns:
         return result
     
-    # Calculate top projects for all scans (count rows, each row is a scan)
-    result['top_projects'] = data.groupby('projectName').size().nlargest(15).to_dict()
+    # Calculate top projects for all scans (sum scanCount per project)
+    result['top_projects'] = _top_projects_by_scan_count(data)
     
     # Calculate top projects for successful scans only
     if 'is_success' in data.columns:
         success_data = data[data['is_success'] == True]
         if len(success_data) > 0 and 'projectName' in success_data.columns:
-            result['top_projects_success'] = success_data.groupby('projectName').size().nlargest(15).to_dict()
+            result['top_projects_success'] = _top_projects_by_scan_count(success_data)
     
     # Calculate top projects for failed scans only
     if 'is_failure' in data.columns:
         failed_data = data[data['is_failure'] == True]
         if len(failed_data) > 0 and 'projectName' in failed_data.columns:
-            result['top_projects_failed'] = failed_data.groupby('projectName').size().nlargest(15).to_dict()
+            result['top_projects_failed'] = _top_projects_by_scan_count(failed_data)
     
     return result
 
 
-def analyze_data(dataframes, start_year=None):
+def analyze_data(dataframes, start_year=None, end_year=None):
     """
     Analyze the data and prepare statistics for visualization.
     
     Args:
         dataframes: Dictionary of DataFrames
         start_year: Optional integer to filter data from this year onwards
+        end_year: Optional integer to filter data up to and including this year
         
     Returns:
         dict: Analysis results
@@ -655,16 +665,25 @@ def analyze_data(dataframes, start_year=None):
     all_data = pd.concat(dataframes.values(), ignore_index=True) if len(dataframes) > 0 else None
     
     # Apply year filter if specified
-    if all_data is not None and start_year is not None:
+    if all_data is not None and (start_year is not None or end_year is not None):
         if 'hour' in all_data.columns:
-            # Parse year from hour column
             all_data['year_temp'] = pd.to_datetime(all_data['hour']).dt.year
             rows_before = len(all_data)
-            all_data = all_data[all_data['year_temp'] >= start_year].copy()
+            mask = pd.Series([True] * len(all_data), index=all_data.index)
+            if start_year is not None:
+                mask = mask & (all_data['year_temp'] >= start_year)
+            if end_year is not None:
+                mask = mask & (all_data['year_temp'] <= end_year)
+            all_data = all_data[mask].copy()
             all_data = all_data.drop('year_temp', axis=1)
             rows_after = len(all_data)
             if rows_before > rows_after:
-                print(f"  Filtered out {rows_before - rows_after} rows from before {start_year}")
+                range_desc = []
+                if start_year:
+                    range_desc.append(f">= {start_year}")
+                if end_year:
+                    range_desc.append(f"<= {end_year}")
+                print(f"  Filtered to rows where year {' and '.join(range_desc)} ({rows_after}/{rows_before} rows kept)")
     
     # Pre-compute state classifications once (vectorized operation)
     success_states = ['COMPLETED', 'SUCCESS', 'COMPLETE']
@@ -802,21 +821,21 @@ def analyze_data(dataframes, start_year=None):
             for scan_type in all_data['scanType'].unique():
                 # All scans of this type
                 scan_type_data = all_data[all_data['scanType'] == scan_type]
-                top_projects = scan_type_data.groupby('projectName').size().nlargest(15).to_dict()
+                top_projects = _top_projects_by_scan_count(scan_type_data)
                 analysis['aggregated']['projects_by_scan_type'][scan_type] = top_projects
                 
                 # Successful scans of this type
                 if 'is_success' in all_data.columns:
                     success_scan_type_data = all_data[(all_data['scanType'] == scan_type) & (all_data['is_success'] == True)]
                     if len(success_scan_type_data) > 0:
-                        top_projects_success = success_scan_type_data.groupby('projectName').size().nlargest(15).to_dict()
+                        top_projects_success = _top_projects_by_scan_count(success_scan_type_data)
                         analysis['aggregated']['projects_by_scan_type_success'][scan_type] = top_projects_success
                 
                 # Failed scans of this type
                 if 'is_failure' in all_data.columns:
                     failed_scan_type_data = all_data[(all_data['scanType'] == scan_type) & (all_data['is_failure'] == True)]
                     if len(failed_scan_type_data) > 0:
-                        top_projects_failed = failed_scan_type_data.groupby('projectName').size().nlargest(15).to_dict()
+                        top_projects_failed = _top_projects_by_scan_count(failed_scan_type_data)
                         analysis['aggregated']['projects_by_scan_type_failed'][scan_type] = top_projects_failed
         
         # Top projects by time block (all, success, failed)
@@ -1039,7 +1058,7 @@ def aggregate_time_series(data, threshold=500):
     }).assign(**{col: data_copy.groupby('date')[col].sum() for col in data_copy.columns if col not in ['hour', 'hour_parsed', 'date', 'year']})
 
 
-def generate_chart_data(dataframes, min_scans=10, skip_detailed=False):
+def generate_chart_data(dataframes, min_scans=10, skip_detailed=False, max_projects=1000, start_year=None, end_year=None):
     """
     Generate data for charts and trend visualization.
     
@@ -1047,6 +1066,9 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False):
         dataframes: Dictionary of DataFrames
         min_scans: Minimum number of scans for a project to be included in trend charts (default: 10)
         skip_detailed: Skip year+project combination charts to reduce file size (default: False)
+        max_projects: Maximum number of projects to include in per-project charts (default: 1000, 0 = unlimited)
+        start_year: Optional integer; only include rows from this year onwards before generating charts
+        end_year: Optional integer; only include rows up to and including this year before generating charts
         
     Returns:
         dict: Chart data ready for Plotly
@@ -1066,6 +1088,28 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False):
         'by_file': {}  # Per-file chart data
     }
     
+    # Apply year range filter to each individual dataframe so per-file loops also see filtered data
+    if start_year is not None or end_year is not None:
+        filtered_dataframes = {}
+        for fname, df in dataframes.items():
+            if 'hour' in df.columns:
+                year_col = pd.to_datetime(df['hour'], errors='coerce').dt.year
+                mask = pd.Series([True] * len(df), index=df.index)
+                if start_year is not None:
+                    mask = mask & (year_col >= start_year)
+                if end_year is not None:
+                    mask = mask & (year_col <= end_year)
+                filtered_dataframes[fname] = df[mask].copy()
+            else:
+                filtered_dataframes[fname] = df
+        dataframes = filtered_dataframes
+        range_parts = []
+        if start_year:
+            range_parts.append(f"from {start_year}")
+        if end_year:
+            range_parts.append(f"up to {end_year}")
+        print(f"  Chart data: using rows {' '.join(range_parts)} only")
+
     # Combine all dataframes for aggregated charts
     all_data = pd.concat(dataframes.values(), ignore_index=True) if len(dataframes) > 0 else None
     
@@ -1174,13 +1218,16 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False):
                     all_projects = sorted([p for p in all_data['projectName'].unique().tolist() if pd.notna(p)])
                     project_groups = all_data_sorted.groupby('projectName', sort=False)
                     
-                    # Filter projects by minimum scan count
-                    project_scan_counts = all_data.groupby('projectName').size()
+                    # Filter projects by minimum scan count (use scanCount sum for consistency)
+                    if 'scanCount' in all_data.columns:
+                        project_scan_counts = all_data.groupby('projectName')['scanCount'].sum()
+                    else:
+                        project_scan_counts = all_data.groupby('projectName').size()
                     projects_for_charts = [p for p in all_projects if project_scan_counts.get(p, 0) >= min_scans]
                     
-                    # Hard limit: Cap at 1000 projects max to prevent browser performance issues
-                    MAX_PROJECTS_FOR_CHARTS = 1000
-                    if len(projects_for_charts) > MAX_PROJECTS_FOR_CHARTS:
+                    # Optional cap on number of projects to prevent browser performance issues
+                    MAX_PROJECTS_FOR_CHARTS = max_projects if max_projects and max_projects > 0 else None
+                    if MAX_PROJECTS_FOR_CHARTS and len(projects_for_charts) > MAX_PROJECTS_FOR_CHARTS:
                         # Sort by scan count descending and take top N
                         projects_with_counts = [(p, project_scan_counts.get(p, 0)) for p in projects_for_charts]
                         projects_with_counts.sort(key=lambda x: x[1], reverse=True)
