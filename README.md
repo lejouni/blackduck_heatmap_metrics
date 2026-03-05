@@ -94,11 +94,17 @@ pip install -e .
 pip install .
 ```
 
-### Using pip (once published to PyPI)
+### Using pip
 
 ```bash
 pip install blackduck-heatmap-metrics
 ```
+
+> **Corporate / restricted network?** If your organisation uses an internal package index
+> (Artifactory, Nexus, etc.), add PyPI as an extra source:
+> ```bash
+> pip install blackduck-heatmap-metrics --extra-index-url https://pypi.org/simple/
+> ```
 
 ## Usage
 
@@ -535,7 +541,7 @@ SPH is calculated as `scanCount.sum()` per hour bucket. The SPH section is alway
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.8+ (Python 3.6 and 3.7 are not supported)
 - pandas >= 2.0.0
 - jinja2 >= 3.1.0
 - plotly >= 5.18.0

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.20] - 2026-03-05
+
+### Changed
+- **Minimum Python version raised to 3.8** — Python 3.6 and 3.7 are no longer supported.
+  `pandas >= 2.0.0` (a required dependency) dropped Python 3.7 support, making 3.8 the
+  accurate minimum. Users on Python 3.6/3.7 will now receive a clear pip error instead
+  of the cryptic `"from versions: none"` message.
+- **Classifiers updated** — removed Python 3.7 classifier, added Python 3.12 and 3.13.
+
+### Fixed
+- **`.pkgtest` venv directory added to `.gitignore`** — the release-script temporary test
+  venv was not gitignored, causing it to be committed and then failing to recreate on
+  other machines (Windows locks `python.exe` in an existing venv, leaving it without
+  `pip.exe` or activation scripts). Other users would then get
+  `"Defaulting to user installation because normal site-packages is not writeable"` and
+  a failed install.
+
 ## [0.1.19] - 2026-03-05
 
 ### Fixed
