@@ -5,12 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.18] - 2026-03-05
+
+### Added
+- **Info icons on all metric cards** — every summary card now has a small circular `ⓘ` icon that
+  shows a descriptive tooltip on hover, explaining what the metric measures
+  - Static cards: Total Files, Total Records, Unique Projects, Total Scans, Successful Scans,
+    Failed Scans, Success Rate, Busiest Hours, Quietest Hours
+  - SPH cards (JS-rendered): Peak SPH, Hours Over Capacity, Hours in Warning
+  - Implemented via a lightweight `.info-icon` CSS class (no external dependencies)
+
+### Changed
+- **`--capacity-sph` now defaults to `120`** instead of being disabled — the Capacity Usage SPH
+  section is now always visible in every report; pass `--capacity-sph <N>` to override with
+  your actual hosted environment ceiling
+
 ## [0.1.17] - 2026-03-05
 
 ### Added
 - **Capacity Usage Monitoring** — new `--capacity-sph` and `--sph-warning-pct` CLI options add a dedicated
   *Capacity Usage – Scans Per Hour (SPH)* section to both report types
-  - `--capacity-sph <N>`: set your hosted environment's SPH ceiling (e.g. `--capacity-sph 1500`)
+  - `--capacity-sph <N>`: set your hosted environment's SPH ceiling (default: `120`; e.g. `--capacity-sph 1500`)
   - `--sph-warning-pct <N>`: percentage of the ceiling that triggers a warning alarm (default: `80`;
     pass `100` to disable warning zone and track only over-capacity hours)
   - When enabled the report adds:
@@ -23,8 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **Over Capacity & Warning Hours** drill-down table listing the top contributing
       projects per flagged hour, sorted by SPH descending
   - SPH is calculated as `scanCount.sum()` per hour bucket (not row count)
-  - The section is hidden automatically when `--capacity-sph` is not provided — zero additional
-    report size impact when not in use
 - **Snippet % column in Over Capacity & Warning Hours table** — each flagged hour row now shows
   the percentage of that hour's scans that are SNIPPET scan type
   - Colour-coded: 🔴 red ≥ 50%, 🟡 amber ≥ 25%, 🟢 green < 25%
@@ -193,6 +206,8 @@ For future releases, use this template:
 
 ---
 
+[0.1.18]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.18
+[0.1.17]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.17
 [0.1.16]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.16
 [0.1.15]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.15
 [0.1.14]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.14

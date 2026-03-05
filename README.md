@@ -274,7 +274,7 @@ For large datasets with thousands of projects:
 | `--project-group` | String | None | Filter by Black Duck project group (includes all nested sub-groups) |
 | `--bd-url` | String | `$BD_URL` | Black Duck server URL |
 | `--bd-token` | String | `$BD_API_TOKEN` | Black Duck API token |
-| `--capacity-sph` | Integer | None | Hosted environment SPH ceiling. Enables capacity monitoring with over-capacity/warning alerts in the report |
+| `--capacity-sph` | Integer | `120` | Hosted environment SPH ceiling. Enables capacity monitoring with over-capacity/warning alerts in the report |
 | `--sph-warning-pct` | Integer | `80` | Percentage of `--capacity-sph` that triggers a warning (default: 80). Pass `100` to track over-capacity hours only |
 | `--compress` | Flag | `False` | gzip-compress HTML output as `.html.gz`; browsers open these natively |
 | `-v, --version` | Flag | - | Show version and exit |
@@ -461,6 +461,9 @@ Displays **aggregated statistics** across all CSV files in the zip archive:
 - **Successful Scans**: Combined number of completed scans
 - **Failed Scans**: Combined number of failed scans
 - **Success Rate**: Overall percentage of successful scans
+- **Busiest / Quietest Hours**: Clock hour (UTC) with the highest/lowest aggregate scan count
+
+Each card displays a small `ⓘ` info icon that shows a descriptive tooltip on hover, explaining what the metric measures.
 
 **Note:** When multiple CSV files are present, summary statistics represent the **combined view** of all Black Duck instances. Use the file filter to view instance-specific metrics.
 
@@ -523,7 +526,7 @@ Enabled with `--capacity-sph <N>`. Adds a dedicated section to both report types
   - Dashed reference lines mark the capacity ceiling and warning threshold
 - **Over Capacity & Warning Hours** drill-down table — each flagged hour shows its SPH, % of capacity, status badge (EXCEEDED / WARNING), **Snippet %** (percentage of that hour's scans that are SNIPPET type, colour-coded: red ≥ 50%, amber ≥ 25%, green < 25%), and the top contributing projects sorted by scan count descending
 
-SPH is calculated as `scanCount.sum()` per hour bucket. The section is hidden automatically when `--capacity-sph` is not provided.
+SPH is calculated as `scanCount.sum()` per hour bucket. The SPH section is always visible in reports; pass `--capacity-sph <N>` to override the default ceiling of 120.
 
 ### Black Duck Overview
 - Scan type breakdown with counts

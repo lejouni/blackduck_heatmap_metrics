@@ -179,8 +179,8 @@ def main():
     parser.add_argument(
         '--capacity-sph',
         type=int,
-        default=None,
-        help='Hosted environment capacity in Scans Per Hour (SPH). Enables capacity usage monitoring with over-capacity/warning alerts in the report.'
+        default=120,
+        help='Hosted environment capacity in Scans Per Hour (SPH). Enables capacity usage monitoring with over-capacity/warning alerts in the report (default: 120).'
     )
 
     parser.add_argument(
