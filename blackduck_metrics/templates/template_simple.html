@@ -1142,6 +1142,7 @@
                             <th>SPH</th>
                             <th>% of Capacity</th>
                             <th>Status</th>
+                            <th style="text-align:center">Snippet %</th>
                             <th>Top Contributing Projects</th>
                         </tr></thead>
                         <tbody>`;
@@ -1154,11 +1155,15 @@
                             .sort((a, b) => b[1] - a[1])
                             .slice(0, 3)
                             .map(([p, c]) => `<strong>${p}</strong>: ${c}`).join(', ');
+                        const snippetPct = (fh.snippet_pct !== null && fh.snippet_pct !== undefined) ? fh.snippet_pct : null;
+                        const snippetColor = snippetPct !== null ? (snippetPct >= 50 ? '#e53e3e' : snippetPct >= 25 ? '#d69e2e' : '#38a169') : '#999';
+                        const snippetCell = snippetPct !== null ? `<span style="color:${snippetColor};font-weight:600">${snippetPct}%</span>` : '&mdash;';
                         tableHtml += `<tr style="background:${rowBg}">
                             <td style="font-family:monospace;white-space:nowrap">${fh.hour}</td>
                             <td><strong>${fh.sph}</strong></td>
                             <td>${fh.pct}%</td>
                             <td>${badge}</td>
+                            <td style="text-align:center">${snippetCell}</td>
                             <td style="font-size:13px">${topProjects || '&mdash;'}</td>
                         </tr>`;
                     });

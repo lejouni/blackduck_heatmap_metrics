@@ -1164,8 +1164,11 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False, max_proje
                         return []
                     
                     series_list = []
-                    # Number of scans over time (count of records per hour)
-                    time_trend = data_sorted.groupby('hour', sort=False).size().reset_index(name='count')
+                    # Number of scans over time (sum of scanCount per hour)
+                    if 'scanCount' in data_sorted.columns:
+                        time_trend = data_sorted.groupby('hour', sort=False)['scanCount'].sum().reset_index(name='count')
+                    else:
+                        time_trend = data_sorted.groupby('hour', sort=False).size().reset_index(name='count')
                     
                     # Sample data if too many points (> 100) to reduce HTML size
                     if len(time_trend) > 100:
@@ -1295,7 +1298,10 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False, max_proje
                         for scan_type in data_sorted['scanType'].unique():
                             if pd.notna(scan_type):
                                 scan_type_data = data_sorted[data_sorted['scanType'] == scan_type]
-                                time_trend = scan_type_data.groupby('hour', sort=False).size().reset_index(name='count')
+                                if 'scanCount' in scan_type_data.columns:
+                                    time_trend = scan_type_data.groupby('hour', sort=False)['scanCount'].sum().reset_index(name='count')
+                                else:
+                                    time_trend = scan_type_data.groupby('hour', sort=False).size().reset_index(name='count')
                                 
                                 # Sample data if too many points (> 50 per scan type)
                                 if len(time_trend) > 50:
@@ -1567,11 +1573,23 @@ def generate_sph_data(all_data, capacity_sph=None, sph_warning_pct=80):
             else:
                 proj_series = pd.Series(dtype=int)
 
+            # Snippet scan type percentage for this hour
+            if 'scanType' in all_data.columns and sph_val > 0:
+                snippet_mask = hour_rows['scanType'].str.upper().str.contains('SNIPPET', na=False)
+                if 'scanCount' in all_data.columns:
+                    snippet_count = int(hour_rows.loc[snippet_mask, 'scanCount'].sum())
+                else:
+                    snippet_count = int(snippet_mask.sum())
+                snippet_pct = round(snippet_count / sph_val * 100, 1)
+            else:
+                snippet_pct = None
+
             flagged_hours.append({
                 'hour': str(hour_val),
                 'sph': sph_val,
                 'pct': pct,
                 'status': status,
+                'snippet_pct': snippet_pct,
                 'projects': {k: int(v) for k, v in proj_series.items()}
             })
 

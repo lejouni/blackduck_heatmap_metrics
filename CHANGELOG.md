@@ -25,6 +25,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - SPH is calculated as `scanCount.sum()` per hour bucket (not row count)
   - The section is hidden automatically when `--capacity-sph` is not provided — zero additional
     report size impact when not in use
+- **Snippet % column in Over Capacity & Warning Hours table** — each flagged hour row now shows
+  the percentage of that hour's scans that are SNIPPET scan type
+  - Colour-coded: 🔴 red ≥ 50%, 🟡 amber ≥ 25%, 🟢 green < 25%
+  - Displays `—` when `scanType` column is absent from the data
+
+### Fixed
+- **Time Series "Number of Scans Over Time" used row count instead of `scanCount`** — the
+  `generate_time_series_for_data()` function was calling `groupby('hour').size()` (CSV row count)
+  instead of `groupby('hour')['scanCount'].sum()`, causing the chart to under-count scans when
+  multiple code locations share an hour bucket with `scanCount > 1`; fallback to `.size()` is
+  retained when the `scanCount` column is absent
+- **Scan Type Evolution used row count instead of `scanCount`** — same fix applied to
+  `generate_scan_type_evolution()` so per-scan-type counts now correctly reflect
+  `scanCount.sum()` per hour per type
 
 ## [0.1.16] - 2026-03-04
 

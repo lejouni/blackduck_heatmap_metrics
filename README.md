@@ -484,7 +484,7 @@ Displays **aggregated statistics** across all CSV files in the zip archive:
 ### Charts and Visualizations
 
 1. **Scan Activity Over Time**
-   - Line chart showing number of scans over time
+   - Line chart showing number of scans over time (uses `scanCount.sum()` per hour bucket, not row count)
    - Total scan size trends
    - Filters by year, project, and file
 
@@ -497,7 +497,7 @@ Displays **aggregated statistics** across all CSV files in the zip archive:
    - Updates based on year/project selection
 
 4. **Scan Type Evolution Over Time**
-   - Multi-line time series chart
+   - Multi-line time series chart (uses `scanCount.sum()` per scan type per hour, not row count)
    - Interactive checkbox selection for scan types
    - Track how different scan types have evolved
    - Smart error messages when data unavailable (shows min-scans threshold)
@@ -521,7 +521,7 @@ Enabled with `--capacity-sph <N>`. Adds a dedicated section to both report types
   - 🟡 Amber — in warning zone
   - 🔵 Blue — normal
   - Dashed reference lines mark the capacity ceiling and warning threshold
-- **Over Capacity & Warning Hours** drill-down table — each flagged hour shows its SPH, % of capacity, status badge (EXCEEDED / WARNING), and the top contributing projects sorted by scan count descending
+- **Over Capacity & Warning Hours** drill-down table — each flagged hour shows its SPH, % of capacity, status badge (EXCEEDED / WARNING), **Snippet %** (percentage of that hour's scans that are SNIPPET type, colour-coded: red ≥ 50%, amber ≥ 25%, green < 25%), and the top contributing projects sorted by scan count descending
 
 SPH is calculated as `scanCount.sum()` per hour bucket. The section is hidden automatically when `--capacity-sph` is not provided.
 
@@ -533,9 +533,12 @@ SPH is calculated as `scanCount.sum()` per hour bucket. The section is hidden au
 ## Requirements
 
 - Python 3.7+
-- pandas >= 2.0.0
-- jinja2 >= 3.1.0
-- plotly >= 5.18.0
+- pandas >= 3.0.1
+- jinja2 >= 3.1.6
+- plotly >= 6.6.0
+- tqdm >= 4.67.3
+- blackduck >= 1.1.3
+- requests >= 2.32.5
 
 ## Project Structure
 
