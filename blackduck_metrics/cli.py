@@ -177,6 +177,20 @@ def main():
     )
 
     parser.add_argument(
+        '--capacity-sph',
+        type=int,
+        default=None,
+        help='Hosted environment capacity in Scans Per Hour (SPH). Enables capacity usage monitoring with over-capacity/warning alerts in the report.'
+    )
+
+    parser.add_argument(
+        '--sph-warning-pct',
+        type=int,
+        default=80,
+        help='Percentage of the capacity SPH ceiling that triggers a warning (default: 80). Requires --capacity-sph to be set.'
+    )
+
+    parser.add_argument(
         '--compress',
         action='store_true',
         help='gzip-compress HTML output files (.html.gz); browsers open these natively'
@@ -266,7 +280,7 @@ def main():
         print(f"Generating charts (min scans per project: {args.min_scans})...")
         if args.skip_detailed:
             print("  Skip detailed mode: Year+project combinations will be skipped")
-        chart_data = generate_chart_data(dataframes, min_scans=args.min_scans, skip_detailed=args.skip_detailed, max_projects=args.max_projects, start_year=args.start_year, end_year=args.end_year)
+        chart_data = generate_chart_data(dataframes, min_scans=args.min_scans, skip_detailed=args.skip_detailed, max_projects=args.max_projects, start_year=args.start_year, end_year=args.end_year, capacity_sph=args.capacity_sph, sph_warning_pct=args.sph_warning_pct)
         
         # For simple report, use the same chart data (generated from all years)
         chart_data_simple = chart_data if (args.simple and (args.start_year or args.end_year)) else None

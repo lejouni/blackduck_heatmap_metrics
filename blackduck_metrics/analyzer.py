@@ -1058,7 +1058,7 @@ def aggregate_time_series(data, threshold=500):
     }).assign(**{col: data_copy.groupby('date')[col].sum() for col in data_copy.columns if col not in ['hour', 'hour_parsed', 'date', 'year']})
 
 
-def generate_chart_data(dataframes, min_scans=10, skip_detailed=False, max_projects=1000, start_year=None, end_year=None):
+def generate_chart_data(dataframes, min_scans=10, skip_detailed=False, max_projects=1000, start_year=None, end_year=None, capacity_sph=None, sph_warning_pct=80):
     """
     Generate data for charts and trend visualization.
     
@@ -1069,6 +1069,8 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False, max_proje
         max_projects: Maximum number of projects to include in per-project charts (default: 1000, 0 = unlimited)
         start_year: Optional integer; only include rows from this year onwards before generating charts
         end_year: Optional integer; only include rows up to and including this year before generating charts
+        capacity_sph: Hosted environment capacity in Scans Per Hour (default: None)
+        sph_warning_pct: Percentage of capacity_sph that triggers a warning (default: 80)
         
     Returns:
         dict: Chart data ready for Plotly
@@ -1456,7 +1458,10 @@ def generate_chart_data(dataframes, min_scans=10, skip_detailed=False, max_proje
                     print(f"Warning: Could not generate charts for file {filename}: {e}")
             
             charts['by_file'][filename] = file_charts
-    
+
+    # Generate SPH (Scans Per Hour) license usage data from the combined dataset
+    charts['sph'] = generate_sph_data(all_data, capacity_sph=capacity_sph, sph_warning_pct=sph_warning_pct)
+
     return charts
 
 
@@ -1492,6 +1497,110 @@ def convert_to_json_serializable(obj):
         return None
     else:
         return obj
+
+
+def generate_sph_data(all_data, capacity_sph=None, sph_warning_pct=80):
+    """
+    Generate Scans Per Hour (SPH) data for capacity usage monitoring.
+
+    Each CSV row represents a code-location scan entry for a given hour bucket.
+    SPH for a given hour = sum of scanCount across all code locations in that hour.
+    This is the correct metric for SPH-based Black Duck SCA licensing.
+
+    Args:
+        all_data: Combined DataFrame with 'hour' and 'scanCount' columns
+        capacity_sph: Hosted environment SPH capacity ceiling, or None if not configured
+        sph_warning_pct: Percentage of capacity_sph that triggers a warning (default 80)
+
+    Returns:
+        dict: SPH data including time series, flagged hours, and summary metrics,
+              or None if required data is unavailable
+    """
+    if all_data is None or 'hour' not in all_data.columns:
+        return None
+
+    # Sum scanCount per hour bucket (use scanCount column; fall back to row count)
+    if 'scanCount' in all_data.columns:
+        hourly_sph = all_data.groupby('hour', sort=True)['scanCount'].sum().reset_index()
+    else:
+        hourly_sph = all_data.groupby('hour', sort=True).size().reset_index(name='scanCount')
+    hourly_sph.columns = ['hour', 'sph']
+    hourly_sph = hourly_sph.sort_values('hour').reset_index(drop=True)
+
+    peak_sph = int(hourly_sph['sph'].max()) if len(hourly_sph) > 0 else 0
+
+    # Compute thresholds
+    _raw_warning = int(capacity_sph * sph_warning_pct / 100) if capacity_sph is not None else None
+    # Only use warning threshold when it is strictly below the capacity ceiling;
+    # if sph_warning_pct >= 100 the warning zone would be empty (every hour at
+    # the threshold is already over capacity), so suppress it entirely.
+    warning_threshold = _raw_warning if (_raw_warning is not None and _raw_warning < capacity_sph) else None
+
+    # Flagged hours (>= warning threshold, or >= capacity_sph if no warning zone): include per-project breakdown
+    flagged_hours = []
+    if capacity_sph is not None:
+        # Flag hours at or above the warning threshold (or over-capacity-only when no warning zone)
+        effective_flag_threshold = warning_threshold if warning_threshold is not None else capacity_sph
+        flag_mask = hourly_sph['sph'] >= effective_flag_threshold
+        flagged_df = hourly_sph[flag_mask]
+
+        for _, row in flagged_df.iterrows():
+            hour_val = row['hour']
+            sph_val = int(row['sph'])
+            status = 'BREACH' if sph_val >= capacity_sph else 'WARNING'
+            pct = round(sph_val / capacity_sph * 100, 1)
+
+            # Per-project breakdown for this specific hour
+            hour_rows = all_data[all_data['hour'] == hour_val]
+            if 'scanCount' in all_data.columns and 'projectName' in all_data.columns:
+                proj_series = (
+                    hour_rows.groupby('projectName')['scanCount'].sum()
+                    .sort_values(ascending=False)
+                    .head(10)
+                )
+            elif 'projectName' in all_data.columns:
+                proj_series = (
+                    hour_rows.groupby('projectName').size()
+                    .sort_values(ascending=False)
+                    .head(10)
+                )
+            else:
+                proj_series = pd.Series(dtype=int)
+
+            flagged_hours.append({
+                'hour': str(hour_val),
+                'sph': sph_val,
+                'pct': pct,
+                'status': status,
+                'projects': {k: int(v) for k, v in proj_series.items()}
+            })
+
+        # Sort by SPH descending so worst offenders appear first
+        flagged_hours.sort(key=lambda x: x['sph'], reverse=True)
+
+    # Down-sample SPH series for chart display (max 500 points)
+    step = max(1, len(hourly_sph) // 500)
+    display_sph = hourly_sph.iloc[::step]
+    sph_series = [
+        {'hour': str(r['hour']), 'sph': int(r['sph'])}
+        for _, r in display_sph.iterrows()
+    ]
+
+    breach_count = int((hourly_sph['sph'] >= capacity_sph).sum()) if capacity_sph is not None else 0
+    warning_count = int(
+        ((hourly_sph['sph'] >= warning_threshold) & (hourly_sph['sph'] < capacity_sph)).sum()
+    ) if capacity_sph is not None else 0
+
+    return {
+        'capacity_sph': capacity_sph,
+        'warning_pct': sph_warning_pct,
+        'warning_threshold': warning_threshold,
+        'peak_sph': peak_sph,
+        'breach_count': breach_count,
+        'warning_count': warning_count,
+        'sph_series': sph_series,
+        'flagged_hours': flagged_hours
+    }
 
 
 def generate_html_report(analysis, chart_data, output_path, min_scans=10, analysis_simple=None, chart_data_simple=None, project_group_name=None, simple_only=False):

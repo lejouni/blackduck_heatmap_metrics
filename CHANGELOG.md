@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.17] - 2026-03-05
+
+### Added
+- **Capacity Usage Monitoring** — new `--capacity-sph` and `--sph-warning-pct` CLI options add a dedicated
+  *Capacity Usage – Scans Per Hour (SPH)* section to both report types
+  - `--capacity-sph <N>`: set your hosted environment's SPH ceiling (e.g. `--capacity-sph 1500`)
+  - `--sph-warning-pct <N>`: percentage of the ceiling that triggers a warning alarm (default: `80`;
+    pass `100` to disable warning zone and track only over-capacity hours)
+  - When enabled the report adds:
+    - **Peak SPH** card showing the highest observed SPH value and its % of capacity
+    - **Hours Over Capacity** card — count of hours where SPH ≥ capacity ceiling
+    - **Hours in Warning** card — count of hours that approach the ceiling; automatically
+      hidden when `--sph-warning-pct 100` (empty warning zone edge-case)
+    - **Scans Per Hour Over Time** Plotly chart with colour-coded markers
+      (red = over capacity, amber = warning, blue = normal) and dashed reference lines
+    - **Over Capacity & Warning Hours** drill-down table listing the top contributing
+      projects per flagged hour, sorted by SPH descending
+  - SPH is calculated as `scanCount.sum()` per hour bucket (not row count)
+  - The section is hidden automatically when `--capacity-sph` is not provided — zero additional
+    report size impact when not in use
+
 ## [0.1.16] - 2026-03-04
 
 ### Added

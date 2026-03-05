@@ -77,6 +77,7 @@ Before using this tool, you need to export the heatmap data from your Black Duck
 - 📱 **Responsive Design**: Works on desktop and mobile devices
 - 🚀 **Performance Optimized**: Configurable min-scans threshold and skip-detailed mode for large datasets
 - 📑 **Flexible Report Types**: Choose between full interactive report or simplified static report
+- 📈 **Capacity Usage Monitoring**: Track Scans Per Hour (SPH) against your hosted environment ceiling with over-capacity and warning alerts, per-hour project drill-down, and a time-series chart
 
 ## Installation
 
@@ -162,6 +163,15 @@ bdmetrics "path/to/data.zip" --simple
 
 # Combine options for optimal performance with large datasets
 bdmetrics "path/to/data.zip" --min-scans 100 --skip-detailed --start-year 2020 -o reports
+
+# Monitor capacity: flag hours where total SPH exceeds the hosted environment ceiling
+bdmetrics "path/to/data.zip" --capacity-sph 1500
+
+# Monitor capacity with a custom warning threshold (default: 80% of ceiling)
+bdmetrics "path/to/data.zip" --capacity-sph 1500 --sph-warning-pct 70
+
+# Combine capacity monitoring with other options
+bdmetrics "path/to/data.zip" --capacity-sph 1500 --sph-warning-pct 70 --start-year 2026 --compress
 
 # Show version
 bdmetrics --version
@@ -264,6 +274,8 @@ For large datasets with thousands of projects:
 | `--project-group` | String | None | Filter by Black Duck project group (includes all nested sub-groups) |
 | `--bd-url` | String | `$BD_URL` | Black Duck server URL |
 | `--bd-token` | String | `$BD_API_TOKEN` | Black Duck API token |
+| `--capacity-sph` | Integer | None | Hosted environment SPH ceiling. Enables capacity monitoring with over-capacity/warning alerts in the report |
+| `--sph-warning-pct` | Integer | `80` | Percentage of `--capacity-sph` that triggers a warning (default: 80). Pass `100` to track over-capacity hours only |
 | `--compress` | Flag | `False` | gzip-compress HTML output as `.html.gz`; browsers open these natively |
 | `-v, --version` | Flag | - | Show version and exit |
 | `-h, --help` | Flag | - | Show help message and exit |
@@ -496,6 +508,22 @@ Displays **aggregated statistics** across all CSV files in the zip archive:
 The tool provides context-aware messages when data is unavailable:
 - "No trend data for this project (project has less than X scans)" - when project doesn't meet min-scans threshold
 - "Year+Project combination data not available" - when --skip-detailed flag was used
+
+### Capacity Usage – Scans Per Hour (SPH)
+
+Enabled with `--capacity-sph <N>`. Adds a dedicated section to both report types:
+
+- **Peak SPH** card — highest observed SPH value and its percentage of the configured ceiling
+- **Hours Over Capacity** card — count of hours where total SPH ≥ ceiling
+- **Hours in Warning** card — count of hours within the warning zone (≥ `sph_warning_pct`% of ceiling but below ceiling); hidden when `--sph-warning-pct 100`
+- **Scans Per Hour Over Time** chart — Plotly time-series with colour-coded markers:
+  - 🔴 Red — over capacity
+  - 🟡 Amber — in warning zone
+  - 🔵 Blue — normal
+  - Dashed reference lines mark the capacity ceiling and warning threshold
+- **Over Capacity & Warning Hours** drill-down table — each flagged hour shows its SPH, % of capacity, status badge (EXCEEDED / WARNING), and the top contributing projects sorted by scan count descending
+
+SPH is calculated as `scanCount.sum()` per hour bucket. The section is hidden automatically when `--capacity-sph` is not provided.
 
 ### Black Duck Overview
 - Scan type breakdown with counts
