@@ -536,12 +536,12 @@ SPH is calculated as `scanCount.sum()` per hour bucket. The SPH section is alway
 ## Requirements
 
 - Python 3.7+
-- pandas >= 3.0.1
-- jinja2 >= 3.1.6
-- plotly >= 6.6.0
-- tqdm >= 4.67.3
-- blackduck >= 1.1.3
-- requests >= 2.32.5
+- pandas >= 2.0.0
+- jinja2 >= 3.1.0
+- plotly >= 5.18.0
+- tqdm >= 4.65.0
+- blackduck >= 1.0.0
+- requests >= 2.31.0
 
 ## Project Structure
 

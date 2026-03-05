@@ -5,14 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.19] - 2026-03-05
+
+### Fixed
+- **Package installation failed with "No matching distribution found"** — `pyproject.toml`
+  dependency minimums were accidentally set to the developer's locally installed versions
+  (`pandas>=3.0.1`, `plotly>=6.6.0`, `blackduck>=1.1.3`, etc.), which do not exist on PyPI
+  for most users. Reverted to the same conservative lower bounds used in `setup.py`:
+  - `pandas>=2.0.0` (was `>=3.0.1`)
+  - `jinja2>=3.1.0` (was `>=3.1.6`)
+  - `plotly>=5.18.0` (was `>=6.6.0`)
+  - `tqdm>=4.65.0` (was `>=4.67.3`)
+  - `blackduck>=1.0.0` (was `>=1.1.3`)
+  - `requests>=2.31.0` (was `>=2.32.5`)
+
 ## [0.1.18] - 2026-03-05
 
 ### Added
-- **Info icons on all metric cards** — every summary card now has a small circular `ⓘ` icon that
-  shows a descriptive tooltip on hover, explaining what the metric measures
-  - Static cards: Total Files, Total Records, Unique Projects, Total Scans, Successful Scans,
+- **Info icons on all metric cards and section headings** — every summary card and chart section
+  heading now has a small circular `ⓘ` icon that shows a descriptive tooltip on hover,
+  explaining what the metric or chart illustrates
+  - Summary cards: Total Files, Total Records, Unique Projects, Total Scans, Successful Scans,
     Failed Scans, Success Rate, Busiest Hours, Quietest Hours
   - SPH cards (JS-rendered): Peak SPH, Hours Over Capacity, Hours in Warning
+  - Section headings: Black Duck Scan Overview, Scan Types Breakdown, Top Projects,
+    Top Projects by Time Block, Time Series Trends, Scan Type Evolution Over Time,
+    Capacity Usage – SPH
   - Implemented via a lightweight `.info-icon` CSS class (no external dependencies)
 
 ### Changed
@@ -206,6 +224,7 @@ For future releases, use this template:
 
 ---
 
+[0.1.19]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.19
 [0.1.18]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.18
 [0.1.17]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.17
 [0.1.16]: https://github.com/lejouni/blackduck_heatmap_metrics/releases/tag/v0.1.16

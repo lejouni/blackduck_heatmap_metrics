@@ -532,12 +532,12 @@
         
         {% if analysis.aggregated %}
         <div class="section">
-            <h2>🎯 Black Duck Scan Overview</h2>
+            <h2>🎯 Black Duck Scan Overview <span class="info-icon" title="Scan type distribution, top projects by scan count, and scan activity by time-of-day window">i</span></h2>
             
             {% if analysis.aggregated.scan_types %}
             {% set total_scans = analysis.aggregated.scan_types.values()|sum %}
             <div style="background: white; padding: 25px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 20px;">
-                <h3 style="margin-top: 0; color: #2d3748; font-size: 1.4em;">🔍 Scan Types Breakdown</h3>
+                <h3 style="margin-top: 0; color: #2d3748; font-size: 1.4em;">🔍 Scan Types Breakdown <span class="info-icon" title="Count and percentage share of each scan type (SIGNATURE, SNIPPET, BINARY, etc.) across all scans in the dataset">i</span></h3>
                 <div class="value-count-grid" id="scanTypesBreakdown">
                     {% for scan_type, count in analysis.aggregated.scan_types.items() %}
                     {% set percentage = ((count / total_scans) * 100)|round(1) if total_scans > 0 else 0 %}
@@ -585,7 +585,7 @@
             </script>
             {% endif %}
             
-            <h3 style="margin-top: 30px;">Top Projects</h3>
+            <h3 style="margin-top: 30px;">Top Projects <span class="info-icon" title="Top 20 projects ranked by total scan count (scanCount.sum()); filterable by scan type and date">i</span></h3>
             <div style="margin-bottom: 15px; display: flex; gap: 30px; flex-wrap: wrap; align-items: center;">
                 <div>
                     <label for="scanTypeFilter" style="font-weight: 600; margin-right: 10px;">Filter by Scan Type:</label>
@@ -614,7 +614,7 @@
             </div>
             
             {% if analysis.aggregated.projects_by_time_block %}
-            <h3 style="margin-top: 40px;">🕐 Top Projects by Time Block (3-hour intervals)</h3>
+            <h3 style="margin-top: 40px;">🕐 Top Projects by Time Block (3-hour intervals) <span class="info-icon" title="Top projects within each 3-hour window of the day (e.g. 09-12, 12-15); shows when each project drives the most scan activity">i</span></h3>
             <div style="margin-bottom: 15px;">
                 <label for="timeBlockFilter" style="font-weight: 600; margin-right: 10px;">Filter by Time Block:</label>
                 <select id="timeBlockFilter" onchange="filterProjectsByTimeBlock()" style="padding: 8px 15px; font-size: 0.95em; border-radius: 5px; border: 1px solid #e2e8f0; background: white; cursor: pointer;">
@@ -636,10 +636,10 @@
         
         {% if chart_data %}
         <div class="section">
-            <h2>📈 Time Series Trends</h2>
+            <h2>📈 Time Series Trends <span class="info-icon" title="Total scan volume per hour bucket (UTC) over time, calculated as scanCount.sum() — shows when scanning peaks and troughs occur across the full date range">i</span></h2>
             <div id="timeSeriesChart" class="chart-container"></div>
             
-            <h3 style="margin-top: 30px;">Scan Type Evolution Over Time</h3>
+            <h3 style="margin-top: 30px;">Scan Type Evolution Over Time <span class="info-icon" title="How the scan count for each scan type has changed over time (scanCount.sum() per type per hour); use the checkboxes to show or hide individual types">i</span></h3>
             <div id="scanTypeEvolutionSection">
                 <div style="margin-bottom: 15px;">
                     <label style="font-weight: 600; margin-right: 10px;">Select Scan Types to Display:</label>
@@ -658,7 +658,7 @@
         {% endif %}
 
         <div class="section" id="licenseSection">
-            <h2>&#x23F1;&#xFE0F; Capacity Usage &ndash; Scans Per Hour (SPH)</h2>
+            <h2>&#x23F1;&#xFE0F; Capacity Usage &ndash; Scans Per Hour (SPH) <span class="info-icon" title="Total scans per hour (scanCount.sum()) tracked against the --capacity-sph ceiling; highlights hours that exceed or approach the limit, and drills down to the top contributing projects">i</span></h2>
             <div id="sphContent">
                 <p style="text-align:center;padding:40px;color:#666;">Loading SPH data&hellip;</p>
             </div>
