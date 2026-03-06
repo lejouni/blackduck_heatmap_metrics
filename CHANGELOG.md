@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.21] - 2026-03-06
+
+### Added
+- **New `--project-scans-report` flag** — generates a dedicated project scan counts report instead of the standard heatmap analysis
+  - **Aggregated view**: When viewing "All Scan Types" (default), report shows one row per project with total scans across all scan types and the entire time range
+  - **Per-scan-type view**: When selecting a specific scan type from the dropdown, report shows daily breakdown for that scan type
+  - **Interactive filtering**: Filter by project name (text search), scan type (dropdown), and date range (start/end date pickers)
+  - **Sortable columns**: Click any column header to sort (Project Name, Scan Type, Scan Count)
+  - **Pagination**: Handle large datasets with configurable page sizes (10/20/30/50/100 rows per page)
+  - **CSV export**: Export filtered data with detailed breakdown by scan type (even when viewing aggregated "All Scan Types")
+  - **Fixed-width columns**: Long project names wrap to multiple lines, preventing column width changes
+  - **Progress indicators**: Shows progress bars during data processing for transparency
+  - **Year filtering support**: Respects `--start-year` and `--end-year` arguments to limit data scope
+  - **Compact output**: Dramatically reduces file size compared to full heatmap report
+  - **Date range tracking**: Automatically calculates and displays the date range of the filtered data
+
+### Use Cases
+- Generate summary reports of total scan activity per project across a time period
+- Export scan counts to CSV for further analysis in Excel or other tools
+- Share lightweight scan metrics without the full heatmap visualization overhead
+- Monitor which projects are being scanned and how frequently
+- Compare scan activity across different scan types (SIGNATURE, SCA_SCAN, etc.)
+
+### Usage Examples
+```bash
+# Generate project scans report for 2026
+bdmetrics "data.zip" --project-scans-report --start-year 2026 --end-year 2026
+
+# With project group filter and no project limit
+bdmetrics "data.zip" --project-scans-report --project-group "Demo" --max-projects 0
+
+# Combine with compression for smaller files
+bdmetrics "data.zip" --project-scans-report --compress --start-year 2025
+```
+
 ## [0.1.20] - 2026-03-05
 
 ### Changed

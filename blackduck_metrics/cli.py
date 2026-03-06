@@ -9,7 +9,7 @@ from datetime import datetime
 import time
 
 from . import __version__
-from .analyzer import read_csv_from_zip, analyze_data, generate_chart_data, generate_html_report
+from .analyzer import read_csv_from_zip, analyze_data, generate_chart_data, generate_html_report, generate_project_scan_counts_report
 from .blackduck_connector import BlackDuckConnector
 
 
@@ -197,6 +197,12 @@ def main():
     )
 
     parser.add_argument(
+        '--project-scans-report',
+        action='store_true',
+        help='Generate ONLY a project scan counts report (skips the main heatmap report). This report includes a filterable/sortable table of all project scans with CSV export capability.'
+    )
+
+    parser.add_argument(
         '-v', '--version',
         action='version',
         version=f'%(prog)s {__version__}'
@@ -258,6 +264,62 @@ def main():
                 print("or environment variables: BD_URL, BD_API_TOKEN (or BD_USERNAME and BD_PASSWORD)")
                 return 1
         
+        # Create output folder if it doesn't exist
+        output_folder.mkdir(parents=True, exist_ok=True)
+        
+        # Generate ONLY project scan counts report if requested
+        if args.project_scans_report:
+            print("\n" + "="*60)
+            print("Generating Project Scan Counts Report")
+            print("="*60)
+            year_range_parts = []
+            if args.start_year:
+                year_range_parts.append(f"from {args.start_year}")
+            if args.end_year:
+                year_range_parts.append(f"up to {args.end_year}")
+            if year_range_parts:
+                print(f"Year filter: {' '.join(year_range_parts)}")
+            
+            # Create filename for the scan counts report
+            scan_counts_filename = output_filename.replace('.html', '_project_scans.html')
+            scan_counts_path = output_folder / scan_counts_filename
+            
+            # Generate the report with year filtering
+            generate_project_scan_counts_report(
+                dataframes, 
+                str(scan_counts_path), 
+                project_group_name=args.project_group,
+                start_year=args.start_year,
+                end_year=args.end_year
+            )
+            
+            # Optionally compress the scan counts report
+            if args.compress:
+                print("  Compressing report...")
+                gz_path = Path(str(scan_counts_path) + '.gz')
+                with open(scan_counts_path, 'rb') as f_in:
+                    with gzip.open(str(gz_path), 'wb') as f_out:
+                        f_out.write(f_in.read())
+                scan_counts_path.unlink()
+                gz_size = gz_path.stat().st_size
+                size_str = f"{gz_size / (1024 * 1024):.2f} MB" if gz_size > 1024 * 1024 else f"{gz_size / 1024:.2f} KB"
+                print(f"  ✓ Compressed to {gz_path.name} ({size_str})")
+            
+            # Calculate execution time
+            elapsed_time = time.time() - start_time
+            
+            print("\n" + "="*60)
+            print("✓ Report Generation Complete!")
+            print("="*60)
+            print(f"Files processed: {len(dataframes)}")
+            total_rows = sum(len(df) for df in dataframes.values())
+            print(f"Total rows:      {total_rows:,}")
+            print(f"Execution time:  {elapsed_time:.2f} seconds")
+            print("="*60)
+            
+            return 0
+        
+        # Generate main heatmap report (default behavior)
         # Analyze data
         print("\nAnalyzing data...")
         year_range_parts = []
@@ -273,7 +335,7 @@ def main():
         # (only needed when --simple is used, since analysis_simple feeds the simple template)
         analysis_simple = None
         if args.simple and (args.start_year or args.end_year):
-            print(f"  Generating simple report data (all years)")
+            print("  Generating simple report data (all years)")
             analysis_simple = analyze_data(dataframes, start_year=None, end_year=None)
         
         # Generate chart data
@@ -284,9 +346,6 @@ def main():
         
         # For simple report, use the same chart data (generated from all years)
         chart_data_simple = chart_data if (args.simple and (args.start_year or args.end_year)) else None
-        
-        # Create output folder if it doesn't exist
-        output_folder.mkdir(parents=True, exist_ok=True)
         
         # Generate HTML report
         print("Creating HTML report...")

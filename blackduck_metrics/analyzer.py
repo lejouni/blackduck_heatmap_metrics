@@ -1621,6 +1621,178 @@ def generate_sph_data(all_data, capacity_sph=None, sph_warning_pct=80):
     }
 
 
+def generate_project_scan_counts_data(dataframes, start_year=None, end_year=None):
+    """
+    Generate project scan counts data for a dedicated report with filtering and sorting capabilities.
+    
+    This function aggregates scan count data by project, including scanType and date information,
+    which can be filtered and sorted in the HTML report.
+    
+    Args:
+        dataframes: Dictionary of DataFrames from CSV files
+        start_year: Optional integer to filter data from this year onwards
+        end_year: Optional integer to filter data up to and including this year
+        
+    Returns:
+        tuple: (records, min_date, max_date) where:
+            - records: List of dictionaries with project scan count details
+            - min_date: Minimum date in the filtered data (YYYY-MM-DD) or None
+            - max_date: Maximum date in the filtered data (YYYY-MM-DD) or None
+    """
+    if not dataframes or len(dataframes) == 0:
+        return [], None, None
+    
+    print("  Combining dataframes...")
+    # Combine all dataframes with progress bar
+    all_data = pd.concat(
+        list(tqdm(dataframes.values(), desc="  Processing CSV files", unit="file", leave=False)),
+        ignore_index=True
+    )
+    
+    # Check if required columns exist
+    if 'projectName' not in all_data.columns:
+        print("Warning: 'projectName' column not found in data")
+        return [], None, None
+    
+    # Ensure scanCount column exists (use 1 if not present)
+    if 'scanCount' not in all_data.columns:
+        all_data['scanCount'] = 1
+    
+    # Parse datetime if hour column exists
+    if 'hour' in all_data.columns:
+        print("  Parsing dates...")
+        try:
+            all_data['hour_parsed'] = pd.to_datetime(all_data['hour'])
+            
+            # Apply year filter if specified
+            if start_year is not None or end_year is not None:
+                print("  Applying year filters...")
+                all_data['year_temp'] = all_data['hour_parsed'].dt.year
+                rows_before = len(all_data)
+                mask = pd.Series([True] * len(all_data), index=all_data.index)
+                if start_year is not None:
+                    mask = mask & (all_data['year_temp'] >= start_year)
+                if end_year is not None:
+                    mask = mask & (all_data['year_temp'] <= end_year)
+                all_data = all_data[mask].copy()
+                all_data = all_data.drop('year_temp', axis=1)
+                rows_after = len(all_data)
+                if rows_before > rows_after:
+                    range_desc = []
+                    if start_year:
+                        range_desc.append(f">= {start_year}")
+                    if end_year:
+                        range_desc.append(f"<= {end_year}")
+                    print(f"    Filtered to rows where year {' and '.join(range_desc)} ({rows_after}/{rows_before} rows kept)")
+            
+            print("  Formatting dates...")
+            all_data['scanDate'] = all_data['hour_parsed'].dt.strftime('%Y-%m-%d')
+        except Exception as e:
+            print(f"Warning: Could not parse date from 'hour' column: {e}")
+            all_data['scanDate'] = 'Unknown'
+    else:
+        all_data['scanDate'] = 'Unknown'
+    
+    # Ensure scanType exists
+    if 'scanType' not in all_data.columns:
+        all_data['scanType'] = 'Unknown'
+    
+    print("  Grouping data by project and date...")
+    # Group by projectName, scanType, and scanDate, summing scanCount
+    result_data = all_data[['projectName', 'scanType', 'scanDate', 'scanCount']].copy()
+    result_data = result_data[result_data['projectName'].notna()]
+    
+    # Aggregate: sum scanCount for each combination of project, scanType, and date
+    grouped_data = result_data.groupby(['projectName', 'scanType', 'scanDate'], as_index=False)['scanCount'].sum()
+    
+    # Convert to list of dictionaries
+    records = grouped_data.to_dict('records')
+    
+    # Convert types for JSON compatibility
+    print("  Converting data types...")
+    for record in tqdm(records, desc="  Processing records", unit="record", leave=False):
+        if isinstance(record.get('scanCount'), (np.integer, np.int64)):
+            record['scanCount'] = int(record['scanCount'])
+        elif isinstance(record.get('scanCount'), (np.floating, np.float64)):
+            record['scanCount'] = int(record['scanCount']) if not np.isnan(record['scanCount']) else 0
+    
+    # Calculate min and max dates from the filtered data
+    print("  Calculating date range...")
+    min_date = None
+    max_date = None
+    if len(records) > 0:
+        dates = [r['scanDate'] for r in records if r['scanDate'] != 'Unknown']
+        if dates:
+            dates.sort()
+            min_date = dates[0]
+            max_date = dates[-1]
+    
+    print(f"  ✓ Generated project scan counts data: {len(records)} records")
+    if min_date and max_date:
+        print(f"    Date range: {min_date} to {max_date}")
+    
+    return records, min_date, max_date
+
+
+def generate_project_scan_counts_report(dataframes, output_path, project_group_name=None, start_year=None, end_year=None):
+    """
+    Generate HTML report for project scan counts with filtering and sorting.
+    
+    Args:
+        dataframes: Dictionary of DataFrames from CSV files
+        output_path: Path to save the HTML report
+        project_group_name: Optional project group name to display in the report
+        start_year: Optional integer to filter data from this year onwards
+        end_year: Optional integer to filter data up to and including this year
+    """
+    # Generate scan counts data with year filtering
+    scan_data, min_date, max_date = generate_project_scan_counts_data(dataframes, start_year, end_year)
+    
+    if not scan_data:
+        print("Warning: No scan data available to generate report")
+        return
+    
+    # Load template
+    print("  Loading HTML template...")
+    try:
+        template_path = files('blackduck_metrics').joinpath('templates/template_project_scans.html')
+        template_content = template_path.read_text(encoding='utf-8')
+    except:
+        # Fallback to file path (for development)
+        template_path = Path(__file__).parent / 'templates' / 'template_project_scans.html'
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template_content = f.read()
+    
+    template = Template(template_content)
+    
+    # Render HTML with data
+    print("  Rendering HTML report...")
+    html_content = template.render(
+        scan_data=scan_data,
+        generated_date=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        project_group_name=project_group_name,
+        min_date=min_date,
+        max_date=max_date,
+        start_year=start_year,
+        end_year=end_year
+    )
+    
+    # Write to file
+    print("  Writing report to file...")
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    
+    # Get file size
+    file_size = Path(output_path).stat().st_size
+    if file_size > 1024 * 1024:
+        size_str = f"{file_size / (1024 * 1024):.2f} MB"
+    else:
+        size_str = f"{file_size / 1024:.2f} KB"
+    
+    print(f"  ✓ Report generated successfully ({size_str})")
+    print(f"    {output_path}")
+
+
 def generate_html_report(analysis, chart_data, output_path, min_scans=10, analysis_simple=None, chart_data_simple=None, project_group_name=None, simple_only=False):
     """
     Generate HTML report(s) using Jinja2 templates.

@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Black Duck Project Scan Counts Report</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --background-color: #ecf0f1;
+            --card-background: #ffffff;
+            --border-color: #bdc3c7;
+            --text-color: #2c3e50;
+            --header-bg: #34495e;
+            --hover-bg: #f8f9fa;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: var(--card-background);
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .report-meta {
+            color: #7f8c8d;
+            font-size: 14px;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid var(--border-color);
+        }
+        
+        .filters-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .filter-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            margin-bottom: 15px;
+        }
+        
+        .filter-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .filter-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: var(--primary-color);
+            font-size: 14px;
+        }
+        
+        .filter-group input,
+        .filter-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+        }
+        
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--secondary-color);
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button.secondary {
+            background-color: #95a5a6;
+        }
+        
+        button.secondary:hover {
+            background-color: #7f8c8d;
+        }
+        
+        button.export {
+            background-color: #27ae60;
+        }
+        
+        button.export:hover {
+            background-color: #229954;
+        }
+        
+        .stats-bar {
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #e8f4f8;
+            border-radius: 6px;
+            border-left: 4px solid var(--secondary-color);
+        }
+        
+        .stat-item {
+            flex: 1;
+            min-width: 150px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            table-layout: fixed;
+        }
+        
+        thead {
+            background-color: var(--header-bg);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        
+        th {
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+        
+        th:hover {
+            background-color: #2c3e50;
+        }
+        
+        th.sortable::after {
+            content: ' ⇅';
+            opacity: 0.5;
+            font-size: 12px;
+        }
+        
+        th.sort-asc::after {
+            content: ' ▲';
+            opacity: 1;
+        }
+        
+        th.sort-desc::after {
+            content: ' ▼';
+            opacity: 1;
+        }
+        
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #ecf0f1;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        /* Column widths */
+        th:nth-child(1), td:nth-child(1) {
+            width: 50%;
+        }
+        
+        th:nth-child(2), td:nth-child(2) {
+            width: 30%;
+        }
+        
+        th:nth-child(3), td:nth-child(3) {
+            width: 20%;
+        }
+        
+        tbody tr:hover {
+            background-color: var(--hover-bg);
+        }
+        
+        tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+        
+        .scan-count {
+            font-weight: 600;
+            color: var(--secondary-color);
+        }
+        
+        .pagination-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .page-size-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .page-size-selector label {
+            font-weight: 600;
+            color: var(--primary-color);
+            font-size: 14px;
+        }
+        
+        .page-size-selector select {
+            padding: 6px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+            cursor: pointer;
+        }
+        
+        .pagination-buttons {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        
+        .pagination-buttons button {
+            padding: 6px 12px;
+            font-size: 14px;
+            min-width: auto;
+        }
+        
+        .pagination-buttons button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .pagination-buttons button:disabled:hover {
+            background-color: #bdc3c7;
+        }
+        
+        .page-info {
+            font-size: 14px;
+            color: var(--text-color);
+            font-weight: 500;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .filter-row {
+                flex-direction: column;
+            }
+            
+            .filter-group {
+                width: 100%;
+            }
+            
+            .stats-bar {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .pagination-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .pagination-buttons {
+                justify-content: center;
+            }
+            
+            .pagination-buttons button {
+                flex: 1;
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+            
+            table {
+                font-size: 14px;
+            }
+            
+            th, td {
+                padding: 8px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Black Duck Project Scan Counts Report</h1>
+        <div class="report-meta">
+            <div><strong>Generated:</strong> {{ generated_date }}</div>
+            {% if project_group_name %}
+            <div><strong>Project Group:</strong> {{ project_group_name }}</div>
+            {% endif %}
+            {% if start_year or end_year %}
+            <div><strong>Year Filter:</strong> 
+                {% if start_year and end_year %}
+                    {{ start_year }} to {{ end_year }}
+                {% elif start_year %}
+                    From {{ start_year }}
+                {% elif end_year %}
+                    Up to {{ end_year }}
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if min_date and max_date %}
+            <div><strong>Data Date Range:</strong> {{ min_date }} to {{ max_date }}</div>
+            {% endif %}
+            <div><strong>Total Records:</strong> <span id="totalRecords">{{ scan_data|length }}</span></div>
+        </div>
+        
+        <div class="filters-section">
+            <h3 style="margin-bottom: 15px;">🔍 Filters</h3>
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="filterProject">Project Name</label>
+                    <input type="text" id="filterProject" placeholder="Enter project name...">
+                </div>
+                <div class="filter-group">
+                    <label for="filterScanType">Scan Type</label>
+                    <select id="filterScanType">
+                        <option value="">All Scan Types</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="filterStartDate">Start Date</label>
+                    <input type="date" id="filterStartDate"{% if min_date %} min="{{ min_date }}"{% endif %}{% if max_date %} max="{{ max_date }}"{% endif %}>
+                </div>
+                <div class="filter-group">
+                    <label for="filterEndDate">End Date</label>
+                    <input type="date" id="filterEndDate"{% if min_date %} min="{{ min_date }}"{% endif %}{% if max_date %} max="{{ max_date }}"{% endif %}>
+                </div>
+            </div>
+            <div class="button-group">
+                <button onclick="applyFilters()">Apply Filters</button>
+                <button class="secondary" onclick="resetFilters()">Reset Filters</button>
+                <button class="export" onclick="exportToCSV()">📥 Export to CSV</button>
+            </div>
+        </div>
+        
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-label">Filtered Records</div>
+                <div class="stat-value" id="filteredCount">{{ scan_data|length }}</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Total Scan Count</div>
+                <div class="stat-value" id="totalScanCount">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Unique Projects</div>
+                <div class="stat-value" id="uniqueProjects">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">Date Range</div>
+                <div class="stat-value" id="dateRange" style="font-size: 14px;">-</div>
+            </div>
+        </div>
+        
+        <div class="table-container">
+            <table id="scanTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-column="projectName" onclick="sortTable('projectName')">Project Name</th>
+                        <th class="sortable" data-column="scanType" onclick="sortTable('scanType')">Scan Type</th>
+                        <th class="sortable" data-column="scanCount" onclick="sortTable('scanCount')">Scan Count</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Data will be inserted here by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="pagination-controls">
+            <div class="page-size-selector">
+                <label for="pageSize">Rows per page:</label>
+                <select id="pageSize" onchange="changePageSize()">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="30">30</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                </select>
+            </div>
+            <div class="page-info">
+                <span id="pageInfo">Showing 0 - 0 of 0</span>
+            </div>
+            <div class="pagination-buttons">
+                <button onclick="goToFirstPage()" id="firstPageBtn">⏮ First</button>
+                <button onclick="goToPreviousPage()" id="prevPageBtn">← Previous</button>
+                <span class="page-info" id="currentPageDisplay">Page 1</span>
+                <button onclick="goToNextPage()" id="nextPageBtn">Next →</button>
+                <button onclick="goToLastPage()" id="lastPageBtn">Last ⏭</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global data
+        const allData = {{ scan_data|tojson|safe }};
+        let filteredData = [...allData];
+        let currentSort = { column: null, ascending: true };
+        let currentPage = 1;
+        let pageSize = 50;
+        let totalPages = 1;
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Aggregate data initially since "All" scan types is the default
+            filteredData = aggregateByScanType(filteredData, '', '');
+            populateScanTypeFilter();
+            updatePagination();
+            renderTable(filteredData);
+            updateStatistics(filteredData);
+        });
+        
+        function populateScanTypeFilter() {
+            const scanTypes = [...new Set(allData.map(item => item.scanType))].sort();
+            const select = document.getElementById('filterScanType');
+            
+            scanTypes.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                select.appendChild(option);
+            });
+        }
+        
+        function aggregateByScanType(data, startDate, endDate) {
+            // Group by projectName only, summing scanCount across all scan types and all dates
+            const grouped = {};
+            
+            data.forEach(item => {
+                const key = item.projectName;
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        projectName: item.projectName,
+                        scanType: 'All Scan Types',
+                        scanDate: '',
+                        scanCount: 0,
+                        minDate: item.scanDate,
+                        maxDate: item.scanDate
+                    };
+                }
+                grouped[key].scanCount += item.scanCount;
+                
+                // Track min and max dates for this project
+                if (item.scanDate < grouped[key].minDate) {
+                    grouped[key].minDate = item.scanDate;
+                }
+                if (item.scanDate > grouped[key].maxDate) {
+                    grouped[key].maxDate = item.scanDate;
+                }
+            });
+            
+            // Set scanDate to show the date range
+            const result = Object.values(grouped);
+            result.forEach(item => {
+                if (startDate && endDate) {
+                    item.scanDate = `${startDate} to ${endDate}`;
+                } else if (startDate) {
+                    item.scanDate = `${startDate} to ${item.maxDate}`;
+                } else if (endDate) {
+                    item.scanDate = `${item.minDate} to ${endDate}`;
+                } else {
+                    item.scanDate = item.minDate === item.maxDate ? item.minDate : `${item.minDate} to ${item.maxDate}`;
+                }
+            });
+            
+            return result;
+        }
+        
+        function applyFilters() {
+            const projectFilter = document.getElementById('filterProject').value.toLowerCase();
+            const scanTypeFilter = document.getElementById('filterScanType').value;
+            const startDate = document.getElementById('filterStartDate').value;
+            const endDate = document.getElementById('filterEndDate').value;
+            
+            filteredData = allData.filter(item => {
+                // Project name filter
+                if (projectFilter && !item.projectName.toLowerCase().includes(projectFilter)) {
+                    return false;
+                }
+                
+                // Scan type filter
+                if (scanTypeFilter && item.scanType !== scanTypeFilter) {
+                    return false;
+                }
+                
+                // Date range filter
+                if (startDate && item.scanDate < startDate) {
+                    return false;
+                }
+                if (endDate && item.scanDate > endDate) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            // If "All" scan types selected (empty scanTypeFilter), aggregate by project only
+            if (!scanTypeFilter) {
+                filteredData = aggregateByScanType(filteredData, startDate, endDate);
+            }
+            
+            currentPage = 1; // Reset to first page
+            updatePagination();
+            renderTable(filteredData);
+            updateStatistics(filteredData);
+        }
+        
+        function resetFilters() {
+            document.getElementById('filterProject').value = '';
+            document.getElementById('filterScanType').value = '';
+            document.getElementById('filterStartDate').value = '';
+            document.getElementById('filterEndDate').value = '';
+            
+            filteredData = [...allData];
+            // Aggregate by scan type since no specific type is selected
+            filteredData = aggregateByScanType(filteredData, '', '');
+            currentSort = { column: null, ascending: true };
+            currentPage = 1; // Reset to first page
+            
+            // Clear sort indicators
+            document.querySelectorAll('th').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+            
+            updatePagination();
+            renderTable(filteredData);
+            updateStatistics(filteredData);
+        }
+        
+        function sortTable(column) {
+            // Toggle sort direction if same column, otherwise default to ascending
+            if (currentSort.column === column) {
+                currentSort.ascending = !currentSort.ascending;
+            } else {
+                currentSort.column = column;
+                currentSort.ascending = true;
+            }
+            
+            // Update sort indicators
+            document.querySelectorAll('th').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+            
+            const header = document.querySelector(`th[data-column="${column}"]`);
+            if (header) {
+                header.classList.add(currentSort.ascending ? 'sort-asc' : 'sort-desc');
+            }
+            
+            // Sort data
+            filteredData.sort((a, b) => {
+                let aVal = a[column];
+                let bVal = b[column];
+                
+                // Handle numeric sorting for scanCount
+                if (column === 'scanCount') {
+                    aVal = Number(aVal);
+                    bVal = Number(bVal);
+                } else {
+                    // String comparison
+                    aVal = String(aVal).toLowerCase();
+                    bVal = String(bVal).toLowerCase();
+                }
+                
+                if (aVal < bVal) return currentSort.ascending ? -1 : 1;
+                if (aVal > bVal) return currentSort.ascending ? 1 : -1;
+                return 0;
+            });
+            
+            updatePagination();
+            renderTable(filteredData);
+        }
+        
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="no-data">No data matches the current filters</td></tr>';
+                return;
+            }
+            
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, data.length);
+            const pageData = data.slice(startIndex, endIndex);
+            
+            // Render only current page data
+            pageData.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${escapeHtml(item.projectName)}</td>
+                    <td>${escapeHtml(item.scanType)}</td>
+                    <td class="scan-count">${item.scanCount}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            updatePageInfo(data.length, startIndex, endIndex);
+        }
+        
+        function updatePagination() {
+            totalPages = Math.ceil(filteredData.length / pageSize);
+            if (currentPage > totalPages) {
+                currentPage = Math.max(1, totalPages);
+            }
+            
+            // Update button states
+            document.getElementById('firstPageBtn').disabled = currentPage === 1;
+            document.getElementById('prevPageBtn').disabled = currentPage === 1;
+            document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+            document.getElementById('lastPageBtn').disabled = currentPage >= totalPages;
+            
+            // Update page display
+            document.getElementById('currentPageDisplay').textContent = `Page ${currentPage} of ${totalPages}`;
+        }
+        
+        function updatePageInfo(totalRecords, startIndex, endIndex) {
+            const start = totalRecords === 0 ? 0 : startIndex + 1;
+            document.getElementById('pageInfo').textContent = `Showing ${start} - ${endIndex} of ${totalRecords}`;
+        }
+        
+        function changePageSize() {
+            pageSize = parseInt(document.getElementById('pageSize').value);
+            currentPage = 1; // Reset to first page
+            updatePagination();
+            renderTable(filteredData);
+        }
+        
+        function goToFirstPage() {
+            if (currentPage !== 1) {
+                currentPage = 1;
+                updatePagination();
+                renderTable(filteredData);
+            }
+        }
+        
+        function goToPreviousPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                updatePagination();
+                renderTable(filteredData);
+            }
+        }
+        
+        function goToNextPage() {
+            if (currentPage < totalPages) {
+                currentPage++;
+                updatePagination();
+                renderTable(filteredData);
+            }
+        }
+        
+        function goToLastPage() {
+            if (currentPage !== totalPages) {
+                currentPage = totalPages;
+                updatePagination();
+                renderTable(filteredData);
+            }
+        }
+        
+        function updateStatistics(data) {
+            // Filtered count
+            document.getElementById('filteredCount').textContent = data.length;
+            
+            // Total scan count
+            const totalScans = data.reduce((sum, item) => sum + (item.scanCount || 0), 0);
+            document.getElementById('totalScanCount').textContent = totalScans.toLocaleString();
+            
+            // Unique projects
+            const uniqueProjects = new Set(data.map(item => item.projectName)).size;
+            document.getElementById('uniqueProjects').textContent = uniqueProjects;
+            
+            // Date range
+            if (data.length > 0) {
+                const dates = data.map(item => item.scanDate).filter(d => d !== 'Unknown').sort();
+                if (dates.length > 0) {
+                    const minDate = dates[0];
+                    const maxDate = dates[dates.length - 1];
+                    document.getElementById('dateRange').textContent = minDate === maxDate ? minDate : `${minDate} to ${maxDate}`;
+                } else {
+                    document.getElementById('dateRange').textContent = 'Unknown';
+                }
+            } else {
+                document.getElementById('dateRange').textContent = '-';
+            }
+        }
+        
+        function exportToCSV() {
+            // Export exactly what's currently displayed in the table (filteredData)
+            const headers = ['Project Name', 'Scan Type', 'Scan Count'];
+            const csvContent = [
+                headers.join(','),
+                ...filteredData.map(item => [
+                    `"${item.projectName.replace(/"/g, '""')}"`,
+                    `"${item.scanType.replace(/"/g, '""')}"`,
+                    item.scanCount
+                ].join(','))
+            ].join('\n');
+            
+            // Create blob and download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            link.setAttribute('href', url);
+            link.setAttribute('download', `project_scan_counts_${timestamp}.csv`);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return String(text).replace(/[&<>"']/g, m => map[m]);
+        }
+    </script>
+</body>
+</html>

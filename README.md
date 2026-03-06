@@ -133,8 +133,11 @@ generate_html_report(analysis, chart_data, "output_report.html")
 ### Command-Line Examples
 
 ```bash
-# Basic usage - generates report with default settings
+# Basic usage - generates standard heatmap report with default settings
 bdmetrics "C:\Users\Downloads\heatmap-data.zip"
+
+# Generate project scan counts report (alternative to heatmap)
+bdmetrics "path/to/data.zip" --project-scans-report
 
 # Specify output folder
 bdmetrics "path/to/data.zip" -o reports
@@ -178,6 +181,9 @@ bdmetrics "path/to/data.zip" --capacity-sph 1500 --sph-warning-pct 70
 
 # Combine capacity monitoring with other options
 bdmetrics "path/to/data.zip" --capacity-sph 1500 --sph-warning-pct 70 --start-year 2026 --compress
+
+# Generate project scan counts report (aggregated view by project)
+bdmetrics "path/to/data.zip" --project-scans-report --start-year 2026
 
 # Show version
 bdmetrics --version
@@ -252,6 +258,61 @@ bdmetrics "data.zip" --min-scans 100 --skip-detailed
 bdmetrics "data.zip" --simple --min-scans 100 --skip-detailed --start-year 2024
 ```
 
+### Project Scan Counts Report
+
+The `--project-scans-report` flag generates an **alternative report type** focused on scan count summaries rather than detailed heatmap visualizations. This report provides a lightweight, table-based view ideal for tracking scan activity and exporting data.
+
+**Key Features:**
+
+- **Aggregated View (Default)**: When "All Scan Types" is selected, shows one row per project with totals across all scan types and the entire filtered time range
+- **Per-Scan-Type View**: Select a specific scan type to see detailed breakdown (one row per project per day)
+- **Interactive Filtering**: 
+  - Text search by project name
+  - Dropdown filter by scan type
+  - Date range picker (start and end dates)
+- **Sortable Columns**: Click headers to sort by Project Name, Scan Type, or Scan Count
+- **CSV Export**: Download filtered data with individual scan type breakdowns (even when viewing aggregated totals)
+- **Pagination**: Handle thousands of projects with configurable page sizes (10/20/30/50/100 rows)
+- **Fixed-Width Layout**: Long project names wrap within columns, preventing layout shifts
+
+**When to Use Project Scans Report:**
+
+Use `--project-scans-report` when you need:
+- ✅ Summary of total scan counts per project
+- ✅ CSV export for further analysis in Excel/spreadsheets
+- ✅ Lightweight reports (much smaller than full heatmap)
+- ✅ Quick answers to "How many scans per project?"
+- ✅ Comparison of scan activity across projects
+- 📊 Ideal for: Executive summaries, capacity planning, billing/chargeback reports
+
+Use standard heatmap report (default) when you need:
+- ✅ Time-series visualizations and trends
+- ✅ Success/failure rate analysis
+- ✅ Busiest/quietest hours detection
+- ✅ Scan type evolution over time
+- ✅ Capacity usage monitoring (SPH tracking)
+- 📊 Ideal for: Performance analysis, operational monitoring, troubleshooting
+
+**Example Usage:**
+
+```bash
+# Generate project scan counts report for 2026
+bdmetrics "data.zip" --project-scans-report --start-year 2026 --end-year 2026
+
+# Filter to specific project group
+bdmetrics "data.zip" --project-scans-report --project-group "Business Unit A" --max-projects 0
+
+# Combine with compression for sharing
+bdmetrics "data.zip" --project-scans-report --compress -o reports
+
+# Multi-year analysis with compressed output
+bdmetrics "data.zip" --project-scans-report --start-year 2024 --end-year 2026 --compress
+```
+
+**Report Output:**
+- File naming: `report_YYYYMMDD_HHMMSS_project-scans.html` (or `.html.gz` with `--compress`)
+- With project group: `report_YYYYMMDD_HHMMSS_<group-name>_project-scans.html`
+
 ### Performance Optimization
 
 For large datasets with thousands of projects:
@@ -282,6 +343,7 @@ For large datasets with thousands of projects:
 | `--bd-token` | String | `$BD_API_TOKEN` | Black Duck API token |
 | `--capacity-sph` | Integer | `120` | Hosted environment SPH ceiling. Enables capacity monitoring with over-capacity/warning alerts in the report |
 | `--sph-warning-pct` | Integer | `80` | Percentage of `--capacity-sph` that triggers a warning (default: 80). Pass `100` to track over-capacity hours only |
+| `--project-scans-report` | Flag | `False` | Generate project scan counts report instead of heatmap (aggregated scan totals per project) |
 | `--compress` | Flag | `False` | gzip-compress HTML output as `.html.gz`; browsers open these natively |
 | `-v, --version` | Flag | - | Show version and exit |
 | `-h, --help` | Flag | - | Show help message and exit |
