@@ -247,16 +247,77 @@
             background-color: #f8f9fa;
         }
         
+        /* Tooltip styles */
+        .scan-count {
+            font-weight: 600;
+            color: var(--secondary-color);
+            position: relative;
+        }
+        
+        .scan-count.has-tooltip {
+            cursor: help;
+        }
+        
+        .scan-count:hover .tooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .tooltip {
+            visibility: hidden;
+            opacity: 0;
+            position: fixed;
+            z-index: 1000;
+            background-color: #2c3e50;
+            color: white;
+            padding: 12px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transition: opacity 0.3s, visibility 0.3s;
+            font-weight: normal;
+            pointer-events: none;
+        }
+        
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            right: 100%;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 6px solid transparent;
+            border-right-color: #2c3e50;
+        }
+        
+        .tooltip-header {
+            font-weight: 600;
+            margin-bottom: 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+            padding-bottom: 4px;
+        }
+        
+        .tooltip-item {
+            padding: 2px 0;
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+        }
+        
+        .tooltip-label {
+            color: #ecf0f1;
+        }
+        
+        .tooltip-value {
+            font-weight: 600;
+            color: #3498db;
+        }
+        
         .no-data {
             text-align: center;
             padding: 40px;
             color: #7f8c8d;
             font-size: 16px;
-        }
-        
-        .scan-count {
-            font-weight: 600;
-            color: var(--secondary-color);
         }
         
         .pagination-controls {
@@ -486,8 +547,13 @@
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('Initial allData sample:', allData.slice(0, 3));
+            console.log('Total allData records:', allData.length);
+            
             // Aggregate data initially since "All" scan types is the default
             filteredData = aggregateByScanType(filteredData, '', '');
+            console.log('After initial aggregation:', filteredData.length);
+            
             populateScanTypeFilter();
             updatePagination();
             renderTable(filteredData);
@@ -506,8 +572,8 @@
             });
         }
         
-        function aggregateByScanType(data, startDate, endDate) {
-            // Group by projectName only, summing scanCount across all scan types and all dates
+        function aggregateByProject(data, specificScanType, startDate, endDate) {
+            // Group by projectName, summing scanCount for the specific scan type across all dates
             const grouped = {};
             
             data.forEach(item => {
@@ -515,11 +581,12 @@
                 if (!grouped[key]) {
                     grouped[key] = {
                         projectName: item.projectName,
-                        scanType: 'All Scan Types',
+                        scanType: specificScanType,  // Keep the specific scan type being filtered
                         scanDate: '',
                         scanCount: 0,
                         minDate: item.scanDate,
-                        maxDate: item.scanDate
+                        maxDate: item.scanDate,
+                        scanTypeBreakdown: []
                     };
                 }
                 grouped[key].scanCount += item.scanCount;
@@ -533,9 +600,72 @@
                 }
             });
             
-            // Set scanDate to show the date range
+            // Set date ranges for aggregated data
             const result = Object.values(grouped);
             result.forEach(item => {
+                // Set scanDate to show the date range
+                if (startDate && endDate) {
+                    item.scanDate = `${startDate} to ${endDate}`;
+                } else if (startDate) {
+                    item.scanDate = `${startDate} to ${item.maxDate}`;
+                } else if (endDate) {
+                    item.scanDate = `${item.minDate} to ${endDate}`;
+                } else {
+                    item.scanDate = item.minDate === item.maxDate ? item.minDate : `${item.minDate} to ${item.maxDate}`;
+                }
+            });
+            
+            return result;
+        }
+        
+        function aggregateByScanType(data, startDate, endDate) {
+            // Group by projectName only, summing scanCount across all scan types and all dates
+            const grouped = {};
+            
+            data.forEach(item => {
+                const key = item.projectName;
+                if (!grouped[key]) {
+                    grouped[key] = {
+                        projectName: item.projectName,
+                        scanType: 'All Scan Types',
+                        scanDate: '',
+                        scanCount: 0,
+                        minDate: item.scanDate,
+                        maxDate: item.scanDate,
+                        scanTypeBreakdown: [],
+                        scanTypeCounts: {}  // Temporary storage for building breakdown
+                    };
+                }
+                grouped[key].scanCount += item.scanCount;
+                
+                // Track min and max dates for this project
+                if (item.scanDate < grouped[key].minDate) {
+                    grouped[key].minDate = item.scanDate;
+                }
+                if (item.scanDate > grouped[key].maxDate) {
+                    grouped[key].maxDate = item.scanDate;
+                }
+                
+                // Build scan type breakdown from the FILTERED data only
+                // Always use the individual scanType from each item to ensure we reflect filtered data
+                if (item.scanType && item.scanType !== 'All Scan Types') {
+                    grouped[key].scanTypeCounts[item.scanType] = 
+                        (grouped[key].scanTypeCounts[item.scanType] || 0) + item.scanCount;
+                }
+            });
+            
+            // Convert scanTypeCounts to sorted scanTypeBreakdown array
+            const result = Object.values(grouped);
+            result.forEach(item => {
+                // Build the breakdown array from the counts (reflects filtered data)
+                item.scanTypeBreakdown = Object.entries(item.scanTypeCounts)
+                    .map(([scanType, count]) => [scanType, count])
+                    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));  // Sort by count desc, then name asc
+                
+                // Clean up temporary storage
+                delete item.scanTypeCounts;
+                
+                // Set scanDate to show the date range
                 if (startDate && endDate) {
                     item.scanDate = `${startDate} to ${endDate}`;
                 } else if (startDate) {
@@ -551,10 +681,13 @@
         }
         
         function applyFilters() {
-            const projectFilter = document.getElementById('filterProject').value.toLowerCase();
-            const scanTypeFilter = document.getElementById('filterScanType').value;
+            const projectFilter = document.getElementById('filterProject').value.trim().toLowerCase();
+            const scanTypeFilter = document.getElementById('filterScanType').value.trim();
             const startDate = document.getElementById('filterStartDate').value;
             const endDate = document.getElementById('filterEndDate').value;
+            
+            console.log('Applying filters:', { projectFilter, scanTypeFilter, startDate, endDate });
+            console.log('allData length:', allData.length);
             
             filteredData = allData.filter(item => {
                 // Project name filter
@@ -567,21 +700,31 @@
                     return false;
                 }
                 
-                // Date range filter
-                if (startDate && item.scanDate < startDate) {
-                    return false;
-                }
-                if (endDate && item.scanDate > endDate) {
-                    return false;
+                // Date range filter - only apply to non-aggregated data with single dates
+                // Skip if scanDate contains "to" (indicating it's a date range from aggregation)
+                if (item.scanDate && !item.scanDate.includes(' to ')) {
+                    if (startDate && item.scanDate < startDate) {
+                        return false;
+                    }
+                    if (endDate && item.scanDate > endDate) {
+                        return false;
+                    }
                 }
                 
                 return true;
             });
             
-            // If "All" scan types selected (empty scanTypeFilter), aggregate by project only
+            console.log('After filtering, filteredData length:', filteredData.length);
+            
+            // Aggregate data by project to avoid showing the same project multiple times
             if (!scanTypeFilter) {
+                // If "All" scan types selected, aggregate across all scan types
                 filteredData = aggregateByScanType(filteredData, startDate, endDate);
+            } else {
+                // If specific scan type selected, aggregate by project for that scan type
+                filteredData = aggregateByProject(filteredData, scanTypeFilter, startDate, endDate);
             }
+            console.log('After aggregation, filteredData length:', filteredData.length);
             
             currentPage = 1; // Reset to first page
             updatePagination();
@@ -659,7 +802,7 @@
             tbody.innerHTML = '';
             
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="no-data">No data matches the current filters</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" class="no-data">No data matches the current filters</td></tr>';
                 return;
             }
             
@@ -669,14 +812,46 @@
             const pageData = data.slice(startIndex, endIndex);
             
             // Render only current page data
-            pageData.forEach(item => {
+            pageData.forEach((item) => {
                 const row = document.createElement('tr');
+                
+                // Generate tooltip content for scan type breakdown
+                // Only show tooltip when data is aggregated (scanType = "All Scan Types")
+                let tooltipHtml = '';
+                if (item.scanType === 'All Scan Types' && item.scanTypeBreakdown && item.scanTypeBreakdown.length > 0) {
+                    tooltipHtml = '<div class="tooltip">';
+                    tooltipHtml += '<div class="tooltip-header">Scan Type Breakdown</div>';
+                    item.scanTypeBreakdown.forEach(([scanType, count]) => {
+                        tooltipHtml += `<div class="tooltip-item">`;
+                        tooltipHtml += `<span class="tooltip-label">${escapeHtml(scanType)}:</span>`;
+                        tooltipHtml += `<span class="tooltip-value">${count.toLocaleString()}</span>`;
+                        tooltipHtml += `</div>`;
+                    });
+                    tooltipHtml += '</div>';
+                }
+                
                 row.innerHTML = `
                     <td>${escapeHtml(item.projectName)}</td>
                     <td>${escapeHtml(item.scanType)}</td>
-                    <td class="scan-count">${item.scanCount}</td>
+                    <td class="scan-count${tooltipHtml ? ' has-tooltip' : ''}">${item.scanCount}${tooltipHtml}</td>
                 `;
                 tbody.appendChild(row);
+                
+                // Add tooltip positioning on hover
+                if (tooltipHtml) {
+                    const scanCountCell = row.querySelector('.scan-count');
+                    const tooltip = scanCountCell.querySelector('.tooltip');
+                    
+                    if (tooltip) {
+                        scanCountCell.addEventListener('mouseenter', function(e) {
+                            const rect = scanCountCell.getBoundingClientRect();
+                            // Position tooltip to the right of the cell
+                            tooltip.style.left = (rect.right + 10) + 'px';
+                            tooltip.style.top = (rect.top + rect.height / 2) + 'px';
+                            tooltip.style.transform = 'translateY(-50%)';
+                        });
+                    }
+                }
             });
             
             updatePageInfo(data.length, startIndex, endIndex);
@@ -770,16 +945,66 @@
         }
         
         function exportToCSV() {
-            // Export exactly what's currently displayed in the table (filteredData)
-            const headers = ['Project Name', 'Scan Type', 'Scan Count'];
-            const csvContent = [
-                headers.join(','),
-                ...filteredData.map(item => [
-                    `"${item.projectName.replace(/"/g, '""')}"`,
-                    `"${item.scanType.replace(/"/g, '""')}"`,
-                    item.scanCount
-                ].join(','))
-            ].join('\n');
+            // Group data by project and aggregate scan types
+            const projectData = {};
+            const allScanTypes = new Set();
+            
+            // Build project aggregation with scan type breakdown
+            filteredData.forEach(item => {
+                const projectName = item.projectName;
+                
+                if (!projectData[projectName]) {
+                    projectData[projectName] = {
+                        projectName: projectName,
+                        scanTypes: {},
+                        total: 0
+                    };
+                }
+                
+                // Use scan type breakdown if available (for aggregated "All Scan Types" view)
+                if (item.scanTypeBreakdown && item.scanTypeBreakdown.length > 0) {
+                    item.scanTypeBreakdown.forEach(([scanType, count]) => {
+                        projectData[projectName].scanTypes[scanType] = count;
+                        projectData[projectName].total += count;
+                        allScanTypes.add(scanType);
+                    });
+                } else {
+                    // Individual scan type entry
+                    const scanType = item.scanType;
+                    if (scanType !== 'All Scan Types') {
+                        projectData[projectName].scanTypes[scanType] = 
+                            (projectData[projectName].scanTypes[scanType] || 0) + item.scanCount;
+                        projectData[projectName].total += item.scanCount;
+                        allScanTypes.add(scanType);
+                    }
+                }
+            });
+            
+            // Sort scan types alphabetically
+            const sortedScanTypes = Array.from(allScanTypes).sort();
+            
+            // Build CSV headers
+            const headers = ['Project Name', ...sortedScanTypes, 'Total'];
+            
+            // Build CSV rows
+            const rows = Object.values(projectData)
+                .sort((a, b) => a.projectName.localeCompare(b.projectName))
+                .map(project => {
+                    const row = [`"${project.projectName.replace(/"/g, '""')}"`];
+                    
+                    // Add columns for each scan type
+                    sortedScanTypes.forEach(scanType => {
+                        row.push(project.scanTypes[scanType] || 0);
+                    });
+                    
+                    // Add total column
+                    row.push(project.total);
+                    
+                    return row.join(',');
+                });
+            
+            // Combine headers and rows
+            const csvContent = [headers.join(','), ...rows].join('\n');
             
             // Create blob and download
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

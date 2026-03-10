@@ -147,3 +147,6 @@ test_data/
 .restconfig.json
 reports_multi/
 *.gz
+
+# AI assistant context files
+claude.md

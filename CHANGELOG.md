@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.22] - 2026-03-10
+
+### Added
+- **`--download` flag** — download the heatmap ZIP directly from the Black Duck API
+  (`GET api/heatmap/scan/terminal-data.zip`) instead of providing a local file.
+  Requires `--bd-url` and `--bd-token` (or `BD_URL` / `BD_API_TOKEN` environment variables).
+  Overwrites the local file if it already exists.
+- **`--download-path` option** — controls where the downloaded ZIP is saved/read from.
+  - With `--download`: path where the downloaded file is written (default: `heatmap-data.zip` inside the `--output` folder, i.e. alongside the generated report).
+  - Without `--download`: path to an existing local ZIP file to use directly (replaces the positional `zip_file` argument).
+- **`zip_file` positional argument is now optional** — you can omit it when using `--download` or `--download-path`.
+- **Single-connection optimisation** — when both `--download` and `--project-group` are specified, a
+  single `BlackDuckConnector` is created and reused for both the download and the project group lookup,
+  avoiding a second authentication round-trip.
+
+### Usage Examples
+```bash
+# Download fresh data from the API and analyse
+bdmetrics --download --bd-url https://bd.example.com --bd-token <token>
+
+# Download to a specific path, then analyse with a project group filter (single connection)
+bdmetrics --download --download-path /data/heatmap.zip \
+  --project-group "Demo" --bd-url https://bd.example.com --bd-token <token>
+
+# Use a previously downloaded file without re-downloading
+bdmetrics --download-path /data/heatmap.zip --start-year 2025
+
+# Existing positional argument usage is unchanged
+bdmetrics heatmap-data.zip --start-year 2025
+```
+
 ## [0.1.21] - 2026-03-06
 
 ### Added

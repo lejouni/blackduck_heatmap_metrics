@@ -22,6 +22,13 @@ bdmetrics "data.zip" --project-group "Demo" \
   --bd-token "your-api-token"
 ```
 
+Or download the heatmap ZIP directly from the Black Duck API:
+```bash
+bdmetrics --download \
+  --bd-url "https://your-server.com" \
+  --bd-token "your-api-token"
+```
+
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
@@ -29,6 +36,7 @@ bdmetrics "data.zip" --project-group "Demo" \
 - [Installation](#installation)
 - [Usage](#usage)
   - [Command-Line Examples](#command-line-examples)
+  - [Downloading Heatmap Data via API](#downloading-heatmap-data-via-api)
   - [Multi-CSV File Support](#multi-csv-file-support)
   - [Choosing the Right Report Type](#choosing-the-right-report-type)
   - [Performance Optimization](#performance-optimization)
@@ -72,6 +80,7 @@ Before using this tool, you need to export the heatmap data from your Black Duck
 - 🎯 **Black Duck Specific**: Tailored for Black Duck scan heatmap data
 - 📅 **Multi-level Filtering**: Filter by file, year, and project
 - 🏢 **Project Group Filtering**: Filter by Black Duck project groups (includes nested sub-groups)
+- ⬇️ **API-based Download**: Download the heatmap ZIP directly from the Black Duck API — no manual export needed
 - 🔍 **Scan Type Analysis**: Track scan type distribution and evolution over time
 - ✅ **Success/Failure Metrics**: Monitor scan success rates
 - 📱 **Responsive Design**: Works on desktop and mobile devices
@@ -130,6 +139,33 @@ chart_data = generate_chart_data(dataframes)
 generate_html_report(analysis, chart_data, "output_report.html")
 ```
 
+### Downloading Heatmap Data via API
+
+Instead of manually exporting the heatmap ZIP from the Black Duck UI, you can have `bdmetrics` download it automatically using the `--download` flag.
+
+```bash
+# Download the latest heatmap data and analyse it
+bdmetrics --download --bd-url "https://your-server.com" --bd-token "your-token"
+
+# Download to a specific path (re-run without --download to reuse the same file later)
+bdmetrics --download --download-path /data/heatmap.zip \
+  --bd-url "https://your-server.com" --bd-token "your-token"
+
+# Reuse a previously downloaded file without hitting the API again
+bdmetrics --download-path /data/heatmap.zip --start-year 2025
+
+# Download and filter by project group in one step (single API connection)
+bdmetrics --download --project-group "Demo" \
+  --bd-url "https://your-server.com" --bd-token "your-token"
+```
+
+**How it works:**
+- `--download` calls `GET <bd-url>/api/heatmap/scan/terminal-data.zip` and streams the file to disk
+- The file is overwritten if it already exists
+- When `--download-path` is omitted, the ZIP is saved as `heatmap-data.zip` inside the `--output` folder (same folder as the report)
+- When both `--download` and `--project-group` are specified, a single connection is reused for both operations
+- `--bd-url` and `--bd-token` can also be set via `BD_URL` and `BD_API_TOKEN` environment variables
+
 ### Command-Line Examples
 
 ```bash
@@ -184,6 +220,15 @@ bdmetrics "path/to/data.zip" --capacity-sph 1500 --sph-warning-pct 70 --start-ye
 
 # Generate project scan counts report (aggregated view by project)
 bdmetrics "path/to/data.zip" --project-scans-report --start-year 2026
+
+# Download latest heatmap data from the API and analyse
+bdmetrics --download --bd-url "https://your-server.com" --bd-token "your-token"
+
+# Download and write to a specific path
+bdmetrics --download --download-path "/data/heatmap.zip" --bd-url "https://your-server.com" --bd-token "your-token"
+
+# Reuse a previously downloaded file (no API call)
+bdmetrics --download-path "/data/heatmap.zip" --start-year 2025
 
 # Show version
 bdmetrics --version
@@ -330,7 +375,7 @@ For large datasets with thousands of projects:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `zip_file` | Required | - | Path to zip file containing CSV heatmap data |
+| `zip_file` | Optional | - | Path to zip file containing CSV heatmap data. Optional when `--download` or `--download-path` is used. |
 | `-o, --output` | Optional | `.` (current dir) | Output folder path (auto-generates filename) |
 | `--min-scans` | Integer | `10` | Minimum scans for project to appear in trend charts |
 | `--max-projects` | Integer | `1000` | Max projects in trend charts; use `0` for no limit (see performance note) |
@@ -344,11 +389,13 @@ For large datasets with thousands of projects:
 | `--capacity-sph` | Integer | `120` | Hosted environment SPH ceiling. Enables capacity monitoring with over-capacity/warning alerts in the report |
 | `--sph-warning-pct` | Integer | `80` | Percentage of `--capacity-sph` that triggers a warning (default: 80). Pass `100` to track over-capacity hours only |
 | `--project-scans-report` | Flag | `False` | Generate project scan counts report instead of heatmap (aggregated scan totals per project) |
+| `--download` | Flag | `False` | Download heatmap ZIP from the Black Duck API (`api/heatmap/scan/terminal-data.zip`). Overwrites `--download-path` if it already exists. |
+| `--download-path` | String | None | Path for the heatmap ZIP. With `--download`: where to save it (default: `heatmap-data.zip` in the `--output` folder). Without `--download`: use this existing file directly. |
 | `--compress` | Flag | `False` | gzip-compress HTML output as `.html.gz`; browsers open these natively |
 | `-v, --version` | Flag | - | Show version and exit |
 | `-h, --help` | Flag | - | Show help message and exit |
 
-**Note:** `--bd-url` and `--bd-token` are only required when using `--project-group`.
+**Note:** `--bd-url` and `--bd-token` are required when using `--download` or `--project-group`.
 
 ### Using Project Group Filter
 

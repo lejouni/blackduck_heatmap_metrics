@@ -6,6 +6,7 @@ and interact with its REST API.
 """
 
 import os
+from pathlib import Path
 import requests
 from typing import Optional, Dict, Any
 from blackduck.HubRestApi import HubInstance
@@ -151,6 +152,48 @@ class BlackDuckConnector:
                                 projectList = [children_projects]
                                 projects["totalCount"] = int(projects["totalCount"]) + 1
                                 projects["items"] = projects["items"] + projectList
+    def download_heatmap_zip(self, output_path) -> Path:
+        """
+        Download the heatmap scan data ZIP from the Black Duck API.
+        The file is overwritten if it already exists.
+
+        Args:
+            output_path: Path where the ZIP file will be saved
+
+        Returns:
+            Path: Resolved path of the saved file
+
+        Raises:
+            Exception: If the download fails
+        """
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        url = f'{self.hub_instance.get_urlbase()}/api/heatmap/scan/terminal-data.zip'
+        headers = self.hub_instance.get_headers()
+
+        print(f"Downloading heatmap data from {url}...")
+        response = requests.get(
+            url,
+            headers=headers,
+            verify=not self.hub_instance.config['insecure'],
+            stream=True
+        )
+
+        if response.status_code != 200:
+            raise Exception(
+                f"Failed to download heatmap data: HTTP {response.status_code} {response.reason}"
+            )
+
+        with open(output_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=65536):
+                f.write(chunk)
+
+        file_size = output_path.stat().st_size
+        size_str = f"{file_size / (1024 * 1024):.2f} MB" if file_size > 1024 * 1024 else f"{file_size / 1024:.2f} KB"
+        print(f"Downloaded: {output_path} ({size_str})")
+        return output_path
+
     def disconnect(self):
         """
         Clean up connection resources.

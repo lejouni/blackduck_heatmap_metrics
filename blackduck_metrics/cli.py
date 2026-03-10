@@ -13,7 +13,7 @@ from .analyzer import read_csv_from_zip, analyze_data, generate_chart_data, gene
 from .blackduck_connector import BlackDuckConnector
 
 
-def get_project_names_from_group(project_group_name, bd_url=None, bd_token=None):
+def get_project_names_from_group(project_group_name, bd_url=None, bd_token=None, connector=None):
     """
     Get list of project names from a Black Duck project group.
     
@@ -21,6 +21,7 @@ def get_project_names_from_group(project_group_name, bd_url=None, bd_token=None)
         project_group_name: Name of the project group
         bd_url: Black Duck server URL (optional, uses BD_URL env var if not provided)
         bd_token: Black Duck API token (optional, uses BD_API_TOKEN env var if not provided)
+        connector: Optional existing BlackDuckConnector to reuse (will not be disconnected)
         
     Returns:
         set: Set of project names in the group
@@ -30,8 +31,9 @@ def get_project_names_from_group(project_group_name, bd_url=None, bd_token=None)
     """
     print(f"Connecting to Black Duck to fetch projects from group '{project_group_name}'...")
     
-    # Create connector (uses provided args or environment variables for auth)
-    connector = BlackDuckConnector(base_url=bd_url, api_token=bd_token)
+    own_connector = connector is None
+    if own_connector:
+        connector = BlackDuckConnector(base_url=bd_url, api_token=bd_token)
     
     try:
         # Get projects from the group
@@ -51,7 +53,8 @@ def get_project_names_from_group(project_group_name, bd_url=None, bd_token=None)
         return project_names
         
     finally:
-        connector.disconnect()
+        if own_connector:
+            connector.disconnect()
 
 
 def filter_dataframes_by_projects(dataframes, project_names):
@@ -107,7 +110,10 @@ def main():
     )
     parser.add_argument(
         'zip_file',
-        help='Path to the zip file containing CSV files with Black Duck scan data'
+        nargs='?',
+        default=None,
+        help='Path to the zip file containing CSV files with Black Duck scan data. '
+             'Optional when --download or --download-path is used.'
     )
     
     # Generate default filename with timestamp
@@ -203,6 +209,24 @@ def main():
     )
 
     parser.add_argument(
+        '--download',
+        action='store_true',
+        help='Download the latest heatmap ZIP from the Black Duck API '
+             '(api/heatmap/scan/terminal-data.zip). Requires --bd-url and --bd-token '
+             '(or BD_URL / BD_API_TOKEN environment variables). '
+             'Overwrites --download-path if the file already exists.'
+    )
+
+    parser.add_argument(
+        '--download-path',
+        type=str,
+        default=None,
+        help='Path for the heatmap ZIP file. With --download: where to save the downloaded file '
+             '(default: heatmap-data.zip inside the --output folder). '
+             'Without --download: path to an existing ZIP file to use directly.'
+    )
+
+    parser.add_argument(
         '-v', '--version',
         action='version',
         version=f'%(prog)s {__version__}'
@@ -227,14 +251,47 @@ def main():
     # Combine folder and filename
     output_path = output_folder / output_filename
     
-    zip_path = Path(args.zip_file)
-    
-    if not zip_path.exists():
-        print(f"Error: File not found: {zip_path}")
-        return 1
-    
-    if not zip_path.suffix == '.zip':
-        print(f"Error: File must be a zip archive: {zip_path}")
+    # --- Resolve the zip file to analyse ---
+    # Shared BD connector — created here if --download is used so it can be
+    # reused for --project-group without a second authentication round-trip.
+    connector = None
+
+    if args.download:
+        zip_path = Path(args.download_path) if args.download_path else output_folder / 'heatmap-data.zip'
+        try:
+            connector = BlackDuckConnector(base_url=args.bd_url, api_token=args.bd_token)
+            connector.download_heatmap_zip(zip_path)
+            # Keep connector alive only if we also need it for --project-group;
+            # otherwise release it immediately — project group filtering is not required.
+            if not args.project_group:
+                connector.disconnect()
+                connector = None
+        except Exception as e:
+            print(f"Error downloading heatmap data: {e}")
+            print("Ensure --bd-url and --bd-token are provided (or BD_URL / BD_API_TOKEN env vars).")
+            return 1
+    elif args.zip_file:
+        zip_path = Path(args.zip_file)
+        if not zip_path.exists():
+            print(f"Error: File not found: {zip_path}")
+            return 1
+        if zip_path.suffix != '.zip':
+            print(f"Error: File must be a zip archive: {zip_path}")
+            return 1
+    elif args.download_path:
+        zip_path = Path(args.download_path)
+        if not zip_path.exists():
+            print(f"Error: File not found: {zip_path}")
+            print("Tip: Add --download to fetch the latest heatmap data from the Black Duck API.")
+            return 1
+        if zip_path.suffix != '.zip':
+            print(f"Error: File must be a zip archive: {zip_path}")
+            return 1
+        print(f"Using existing heatmap file: {zip_path}")
+    else:
+        print("Error: No input specified.")
+        print("  Provide a zip file path as a positional argument, use --download-path, or use --download.")
+        parser.print_help()
         return 1
     
     print(f"Reading CSV files from: {zip_path}")
@@ -250,7 +307,8 @@ def main():
                 project_names = get_project_names_from_group(
                     args.project_group,
                     bd_url=args.bd_url,
-                    bd_token=args.bd_token
+                    bd_token=args.bd_token,
+                    connector=connector  # reuse download connector if available
                 )
                 dataframes = filter_dataframes_by_projects(dataframes, project_names)
                 
@@ -263,6 +321,11 @@ def main():
                 print("Make sure Black Duck credentials are set via --bd-url and --bd-token arguments")
                 print("or environment variables: BD_URL, BD_API_TOKEN (or BD_USERNAME and BD_PASSWORD)")
                 return 1
+
+        # Release BD connection — no longer needed after project lookup
+        if connector is not None:
+            connector.disconnect()
+            connector = None
         
         # Create output folder if it doesn't exist
         output_folder.mkdir(parents=True, exist_ok=True)
