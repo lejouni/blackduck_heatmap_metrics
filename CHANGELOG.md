@@ -5,7 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.22] - 2026-03-10
+## [0.1.23] - 2026-03-24
+
+### Fixed
+- **SPH diagram shows scan counts, not row counts** — the "Scans Per Hour Over Time" chart now
+  correctly sums the `scanCount` column per hour bucket, matching the values in the
+  "Over Capacity & Warning Hours" table. Previously it was counting CSV rows instead.
+- **CSV column name whitespace** — column names are now stripped of leading/trailing whitespace
+  on load, preventing `scanCount`, `hour`, etc. from being silently unrecognised when the CSV
+  has extra spaces in its header row.
+- **SPH chart year filter** — selecting a year from the "Filter by Year" dropdown now correctly
+  filters the SPH chart and summary cards. Hour values are stored in ISO format (`YYYY-MM-DD
+  HH:MM:SS`) so the JavaScript `startsWith('YYYY-')` comparison always works regardless of the
+  original CSV date format.
+- **SPH chart stale data on year change** — when the filtered series is empty for the selected
+  year, the old chart is now purged and replaced with a "No SPH data available" message instead
+  of showing stale data from the previously selected year.
+- **SPH chart missing flagged hours** — high-SPH hours were sometimes absent from the chart
+  because downsampling (max 500 points) dropped them. All warning/breach hours are now always
+  injected back into the series so chart spikes match the table entries exactly.
+- **Top Projects by Scan Count not affected by year filter** — the bar chart now uses the
+  currently active (year-filtered) display data via a new `currentDisplayData` tracking variable,
+  instead of always reading from the global `allData`.
+- **Top Projects by Time Block not affected by year filter** — same fix applied; the time-block
+  project chart now also respects the selected year.
+- **Missing contributing projects in flagged hours table** — rows where `projectName` is `NaN`
+  were silently dropped by `groupby`, causing their `scanCount` to appear in the SPH total but
+  not in the project breakdown. These rows now fall back to `versionName`, then
+  `"(Unknown project)"`, so every scan in a flagged hour is accounted for.
+
+### Changed
+- **"Over Capacity & Warning Hours" table — project context** — the "Top Contributing Projects"
+  cell now shows the top 3 projects with a note: *(top 3 of N projects — covering X% of SPH)*.
+  This makes it immediately clear when SPH is spread across many projects (e.g. 200+ projects
+  each contributing a handful of scans) vs. dominated by a single project.
+- **Year stats now include time-block project breakdown** — `projects_by_time_block`,
+  `projects_by_time_block_success`, and `projects_by_time_block_failed` are now computed per
+  year in `analyze_data()` and propagated to the frontend, enabling the time-block chart to
+  respond correctly to the year filter.
+
 
 ### Added
 - **`--download` flag** — download the heatmap ZIP directly from the Black Duck API

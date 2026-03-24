@@ -53,6 +53,9 @@ def read_csv_from_zip(zip_path):
             # Read CSV directly from zip file
             with zip_ref.open(csv_file) as f:
                 df = pd.read_csv(f)
+                # Strip any leading/trailing whitespace from column names that could
+                # prevent recognition of 'scanCount', 'hour', etc.
+                df.columns = df.columns.str.strip()
                 dataframes[csv_file] = df
     
     return dataframes
@@ -750,6 +753,9 @@ def analyze_data(dataframes, start_year=None, end_year=None):
                 # Add busiest/quietest hours for this year
                 busy_quiet = calculate_busy_quiet_hours(year_data)
                 copy_busy_quiet_metrics(year_stats, busy_quiet)
+                # Add time-block project breakdown for this year
+                time_block_data = calculate_projects_by_time_block(year_data)
+                year_stats.update(time_block_data)
                 analysis['by_year'][str(year)] = year_stats
                 
         except Exception as e:
@@ -1864,6 +1870,27 @@ def generate_sph_data(all_data, capacity_sph=None, sph_warning_pct=80):
     hourly_sph.columns = ['hour', 'sph']
     hourly_sph = hourly_sph.sort_values('hour').reset_index(drop=True)
 
+    # Build ISO-format mapping for hour values so JavaScript year-filter
+    # (d.hour.startsWith('YYYY-')) works regardless of the original CSV date format.
+    if 'hour_parsed' in all_data.columns:
+        _hour_to_iso = (
+            all_data.groupby('hour', sort=False)['hour_parsed']
+            .first()
+            .dt.strftime('%Y-%m-%d %H:%M:%S')
+            .to_dict()
+        )
+    else:
+        _hour_to_iso = {}
+
+    def _to_iso(hour_val):
+        iso = _hour_to_iso.get(hour_val)
+        if iso:
+            return iso
+        try:
+            return pd.to_datetime(str(hour_val)).strftime('%Y-%m-%d %H:%M:%S')
+        except Exception:
+            return str(hour_val)
+
     peak_sph = int(hourly_sph['sph'].max()) if len(hourly_sph) > 0 else 0
 
     # Compute thresholds
@@ -1886,11 +1913,19 @@ def generate_sph_data(all_data, capacity_sph=None, sph_warning_pct=80):
             flagged_hour_vals = flagged_df['hour'].unique()
             flagged_data = all_data[all_data['hour'].isin(flagged_hour_vals)]
             
-            # Pre-compute project breakdowns per hour
-            if 'scanCount' in all_data.columns and 'projectName' in all_data.columns:
-                hour_project_counts = flagged_data.groupby(['hour', 'projectName'])['scanCount'].sum()
-            elif 'projectName' in all_data.columns:
-                hour_project_counts = flagged_data.groupby(['hour', 'projectName']).size()
+            # Pre-compute project breakdowns per hour.
+            # Use versionName as fallback when projectName is missing, then "(Unknown project)".
+            # Rows with NaN projectName would otherwise be silently dropped by groupby,
+            # causing the SPH total to be unaccounted for in the contributors list.
+            if 'projectName' in all_data.columns:
+                fd = flagged_data.copy()
+                if 'versionName' in fd.columns:
+                    fd['projectName'] = fd['projectName'].fillna(fd['versionName'])
+                fd['projectName'] = fd['projectName'].fillna('(Unknown project)')
+                if 'scanCount' in all_data.columns:
+                    hour_project_counts = fd.groupby(['hour', 'projectName'])['scanCount'].sum()
+                else:
+                    hour_project_counts = fd.groupby(['hour', 'projectName']).size()
             else:
                 hour_project_counts = pd.Series(dtype=int)
             
@@ -1913,9 +1948,12 @@ def generate_sph_data(all_data, capacity_sph=None, sph_warning_pct=80):
                 # Extract pre-computed project breakdown for this hour
                 try:
                     # Use .xs() for multi-index cross-section lookup
-                    proj_series = hour_project_counts.xs(hour_val, level=0).sort_values(ascending=False).head(10)
+                    all_proj_for_hour = hour_project_counts.xs(hour_val, level=0)
+                    total_project_count = int(len(all_proj_for_hour))
+                    proj_series = all_proj_for_hour.sort_values(ascending=False).head(10)
                 except (KeyError, AttributeError):
                     proj_series = pd.Series(dtype=int)
+                    total_project_count = 0
 
                 # Extract pre-computed snippet percentage
                 if sph_val > 0 and hour_val in snippet_data:
@@ -1925,22 +1963,35 @@ def generate_sph_data(all_data, capacity_sph=None, sph_warning_pct=80):
                     snippet_pct = None
 
                 flagged_hours.append({
-                    'hour': str(hour_val),
+                    'hour': _to_iso(hour_val),
                     'sph': sph_val,
                     'pct': pct,
                     'status': status,
                     'snippet_pct': snippet_pct,
-                    'projects': {k: int(v) for k, v in proj_series.items()}
+                    'projects': {k: int(v) for k, v in proj_series.items()},
+                    'total_project_count': total_project_count
                 })
 
             # Sort by SPH descending so worst offenders appear first
             flagged_hours.sort(key=lambda x: x['sph'], reverse=True)
 
-    # Down-sample SPH series for chart display (max 500 points)
+    # Down-sample SPH series for chart display (max 500 background points),
+    # but always include every flagged (warning/breach) hour so the spikes
+    # visible in the "Over Capacity & Warning Hours" table are also present
+    # on the chart — even when they fall between sampled points.
     step = max(1, len(hourly_sph) // 500)
-    display_sph = hourly_sph.iloc[::step]
+    display_sph = hourly_sph.iloc[::step].copy()
+
+    if capacity_sph is not None:
+        effective_threshold = warning_threshold if warning_threshold is not None else capacity_sph
+        all_flagged_rows = hourly_sph[hourly_sph['sph'] >= effective_threshold]
+        already_sampled = set(display_sph['hour'])
+        extra_rows = all_flagged_rows[~all_flagged_rows['hour'].isin(already_sampled)]
+        if len(extra_rows) > 0:
+            display_sph = pd.concat([display_sph, extra_rows]).sort_values('hour').reset_index(drop=True)
+
     sph_series = [
-        {'hour': str(r['hour']), 'sph': int(r['sph'])}
+        {'hour': _to_iso(r['hour']), 'sph': int(r['sph'])}
         for _, r in display_sph.iterrows()
     ]
 

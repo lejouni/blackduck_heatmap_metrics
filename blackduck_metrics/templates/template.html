@@ -755,6 +755,9 @@
         } else {
         }
         
+        // Tracks the currently displayed data object (updated by updateDisplay on every filter change)
+        var currentDisplayData = null;
+
         // Combined filter logic for scan type and date
         function applyCombinedProjectFilters() {
             const selectedScanType = document.getElementById('scanTypeFilter').value;
@@ -763,20 +766,24 @@
             
             const hasScanTypeFilter = selectedScanType !== 'all';
             const hasDateFilter = selectedDate !== '' && selectedDate !== 'all';
+
+            // Use the currently active display data (year/project-filtered) rather than always
+            // falling back to allData so the Top Projects chart respects the year filter.
+            const src = currentDisplayData || allData;
             
             let projectsToDisplay = {};
             
             if (!hasScanTypeFilter && !hasDateFilter) {
                 // No filters - show all projects based on status
                 if (selectedStatus === 'success') {
-                    projectsToDisplay = allData.top_projects_success || {};
+                    projectsToDisplay = src.top_projects_success || {};
                 } else if (selectedStatus === 'failed') {
-                    projectsToDisplay = allData.top_projects_failed || {};
+                    projectsToDisplay = src.top_projects_failed || {};
                 } else {
-                    projectsToDisplay = allData.top_projects;
+                    projectsToDisplay = src.top_projects || {};
                 }
             } else if (hasScanTypeFilter && !hasDateFilter) {
-                // Only scan type filter
+                // Only scan type filter — scan-type breakdown is only available on allData
                 if (selectedStatus === 'success') {
                     projectsToDisplay = (allData.projects_by_scan_type_success && allData.projects_by_scan_type_success[selectedScanType]) || {};
                 } else if (selectedStatus === 'failed') {
@@ -836,25 +843,28 @@
         _filterProjectsByTimeBlock = function filterProjectsByTimeBlock() {
             const selectedTimeBlock = document.getElementById('timeBlockFilter').value;
             const selectedStatus = document.getElementById('statusFilter') ? document.getElementById('statusFilter').value : 'all';
-            
+
+            // Use the currently active display data (respects year filter) rather than always allData.
+            const src = currentDisplayData || allData;
+
             if (selectedTimeBlock === 'all') {
                 // Show all projects when "all" is selected
                 if (selectedStatus === 'success') {
-                    updateTimeBlockProjectChart(allData.top_projects_success || {}, 'All Time Blocks');
+                    updateTimeBlockProjectChart(src.top_projects_success || {}, 'All Time Blocks');
                 } else if (selectedStatus === 'failed') {
-                    updateTimeBlockProjectChart(allData.top_projects_failed || {}, 'All Time Blocks');
+                    updateTimeBlockProjectChart(src.top_projects_failed || {}, 'All Time Blocks');
                 } else {
-                    updateTimeBlockProjectChart(allData.top_projects || {}, 'All Time Blocks');
+                    updateTimeBlockProjectChart(src.top_projects || {}, 'All Time Blocks');
                 }
             } else {
                 // Show projects for specific time block based on status
                 let projectsForBlock;
                 if (selectedStatus === 'success') {
-                    projectsForBlock = (allData.projects_by_time_block_success && allData.projects_by_time_block_success[selectedTimeBlock]) || {};
+                    projectsForBlock = (src.projects_by_time_block_success && src.projects_by_time_block_success[selectedTimeBlock]) || {};
                 } else if (selectedStatus === 'failed') {
-                    projectsForBlock = (allData.projects_by_time_block_failed && allData.projects_by_time_block_failed[selectedTimeBlock]) || {};
+                    projectsForBlock = (src.projects_by_time_block_failed && src.projects_by_time_block_failed[selectedTimeBlock]) || {};
                 } else {
-                    projectsForBlock = (allData.projects_by_time_block && allData.projects_by_time_block[selectedTimeBlock]) || {};
+                    projectsForBlock = (src.projects_by_time_block && src.projects_by_time_block[selectedTimeBlock]) || {};
                 }
                 updateTimeBlockProjectChart(projectsForBlock, selectedTimeBlock);
             }
@@ -1079,6 +1089,9 @@
                         top_projects: data.top_projects,
                         top_projects_success: data.top_projects_success || {},
                         top_projects_failed: data.top_projects_failed || {},
+                        projects_by_time_block: data.projects_by_time_block || {},
+                        projects_by_time_block_success: data.projects_by_time_block_success || {},
+                        projects_by_time_block_failed: data.projects_by_time_block_failed || {},
                         time_blocks: data.time_blocks || [],
                         time_blocks_success: data.time_blocks_success || [],
                         time_blocks_failed: data.time_blocks_failed || [],
@@ -1421,6 +1434,9 @@
         function updateDisplay(data, selectedYear, selectedProject, selectedFile, selectedStatus) {
             selectedFile = selectedFile || 'all';
             selectedStatus = selectedStatus || 'all';
+            // Track the current year/project-scoped data so applyCombinedProjectFilters
+            // can read the correct top_projects for the active filter state.
+            currentDisplayData = data;
             // Apply status filter if needed
             let displayData = data;
             if (selectedStatus !== 'all') {
@@ -1571,10 +1587,16 @@
                     const badge = fh.status === 'BREACH'
                         ? '<span style="background:#e53e3e;color:white;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">EXCEEDED</span>'
                         : '<span style="background:#d69e2e;color:white;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;">WARNING</span>';
-                    const topProjects = Object.entries(fh.projects)
+                    const topProjectEntries = Object.entries(fh.projects)
                         .sort(function(a, b) { return b[1] - a[1]; })
-                        .slice(0, 3)
-                        .map(function(e) { return `<strong>${e[0]}</strong>: ${e[1]}`; }).join(', ');
+                        .slice(0, 3);
+                    const topProjectsSum = topProjectEntries.reduce(function(s, e) { return s + e[1]; }, 0);
+                    const topProjectsPct = fh.sph > 0 ? Math.round(topProjectsSum / fh.sph * 100) : 0;
+                    const totalProjectCount = fh.total_project_count || Object.keys(fh.projects).length;
+                    const topProjects = topProjectEntries.map(function(e) { return `<strong>${e[0]}</strong>: ${e[1]}`; }).join(', ');
+                    const projectContext = totalProjectCount > 0
+                        ? ` <span style="font-size:11px;color:#888">(top 3 of ${totalProjectCount} projects &mdash; covering ${topProjectsPct}% of SPH)</span>`
+                        : '';
                     const snippetPct = (fh.snippet_pct !== null && fh.snippet_pct !== undefined) ? fh.snippet_pct : null;
                     const snippetColor = snippetPct !== null ? (snippetPct >= 50 ? '#e53e3e' : snippetPct >= 25 ? '#d69e2e' : '#38a169') : '#999';
                     const snippetCell = snippetPct !== null ? `<span style="color:${snippetColor};font-weight:600">${snippetPct}%</span>` : '&mdash;';
@@ -1584,7 +1606,7 @@
                             <td>${fh.pct}%</td>
                             <td>${badge}</td>
                             <td style="text-align:center">${snippetCell}</td>
-                            <td style="font-size:13px">${topProjects || '&mdash;'}</td>
+                            <td style="font-size:13px">${topProjects || '&mdash;'}${projectContext}</td>
                         </tr>`;
                 });
                 tableHtml += '</tbody></table>';
@@ -1629,6 +1651,14 @@
                     margin: { r: 120 },
                     height: 450
                 }, config);
+            } else {
+                // No data for the selected filter — clear any previously rendered chart so
+                // the display visually reflects the filter change instead of showing stale data.
+                var sphChartEl = document.getElementById('sphChart');
+                if (sphChartEl) {
+                    try { Plotly.purge('sphChart'); } catch(e) {}
+                    sphChartEl.innerHTML = '<p style="text-align:center;padding:30px;color:#999;">No SPH data available for the selected year.</p>';
+                }
             }
         }
 

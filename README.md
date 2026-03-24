@@ -639,9 +639,15 @@ Enabled with `--capacity-sph <N>`. Adds a dedicated section to both report types
   - 🟡 Amber — in warning zone
   - 🔵 Blue — normal
   - Dashed reference lines mark the capacity ceiling and warning threshold
-- **Over Capacity & Warning Hours** drill-down table — each flagged hour shows its SPH, % of capacity, status badge (EXCEEDED / WARNING), **Snippet %** (percentage of that hour's scans that are SNIPPET type, colour-coded: red ≥ 50%, amber ≥ 25%, green < 25%), and the top contributing projects sorted by scan count descending
+  - All warning/breach hours are always present in the chart (never skipped by downsampling), so spikes in the chart always match entries in the table below
+  - Responds to the **Year filter** — selecting a year shows only that year's SPH data
+- **Over Capacity & Warning Hours** drill-down table — each flagged hour shows:
+  - Timestamp, SPH value, % of capacity, status badge (EXCEEDED / WARNING)
+  - **Snippet %** — percentage of that hour's scans that are SNIPPET type (red ≥ 50%, amber ≥ 25%, green < 25%)
+  - **Top Contributing Projects** — top 3 projects by scan count for that hour, plus a note showing *(top 3 of N projects — covering X% of SPH)* so you can immediately see whether load is concentrated or spread across many projects
+  - Projects with no `projectName` fall back to `versionName`, then `"(Unknown project)"`, so every scan in a flagged hour is fully accounted for
 
-SPH is calculated as `scanCount.sum()` per hour bucket. The SPH section is always visible in reports; pass `--capacity-sph <N>` to override the default ceiling of 120.
+SPH is calculated as `scanCount.sum()` per hour bucket (not row count). The SPH section is always visible in reports; pass `--capacity-sph <N>` to override the default ceiling of 120.
 
 ### Black Duck Overview
 - Scan type breakdown with counts
