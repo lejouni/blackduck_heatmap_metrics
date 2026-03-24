@@ -590,7 +590,7 @@ Each card displays a small `ⓘ` info icon that shows a descriptive tooltip on h
   - Lists each CSV file individually when multiple files are present
   - Dynamically updates all charts and statistics based on selection
   - Useful for comparing different Black Duck SCA instances or environments
-- **Year Selector**: Filter all data and charts by year
+- **Year Selector**: Filter all data and charts by year — affects scan activity, top projects (by scan count and by time block), scan type distribution, and the SPH chart/cards/flagged-hours table
 - **Project Search**: Type-ahead project search with dynamic filtering
 - **Clear Filters**: Reset all filters to show aggregated data across all files
 
@@ -608,7 +608,7 @@ Each card displays a small `ⓘ` info icon that shows a descriptive tooltip on h
 
 2. **Top Projects by Scan Count**
    - Horizontal bar chart of top 20 projects
-   - Updates based on filter selection
+   - Updates based on filter selection (including year filter)
 
 3. **Scan Type Distribution**
    - Pie chart showing breakdown of scan types
